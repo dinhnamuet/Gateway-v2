@@ -12,7 +12,7 @@
 #include <linux/device.h>
 #include <linux/sched/signal.h>
 #include <linux/workqueue.h>
-#include "sx1278.h"
+#include "./Inc/sx1278.h"
 
 void workqueue_func(struct work_struct *work);
 DECLARE_WORK(workqueue, workqueue_func);
