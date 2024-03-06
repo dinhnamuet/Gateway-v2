@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#define SX1278 "/dev/sx-1278"
+#define SX1278 "/dev/lora-0"
 int lora_transmit(uint8_t *data)
 {
     int fd = open(SX1278, O_RDWR);

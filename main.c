@@ -177,7 +177,6 @@ int main(int argc, char *argv[])
 	if (pid > 0) // parent process
 	{
 		int tmp;
-		uint8_t timeout_flag;
 		int i = 0;
 		char tx_buff[PACKET_SIZE];
 		unsigned long timeout = SCAN_DURATION;
@@ -213,9 +212,7 @@ int main(int argc, char *argv[])
 				format_pkt(gateway, tx_buff);
 				raspi.id_handling = newLoRa[i].id;
 				raspi.status = NOT_DONE;
-				timeout_flag = 0;
 				lora_transmit(tx_buff);
-				//LoRa_gotoMode(RXCONTINOUS);
 				printf("\nRequest sent to %d\n", gateway.destination_id);
 				i = (i == node_count - 1) ? 0 : (i + 1);
 			}
@@ -334,21 +331,6 @@ int main(int argc, char *argv[])
 					socket_flag = 0;
 				}
 				usleep(1000);
-				if(timeout == 1 && raspi.status != HANDLED && !timeout_flag)
-				{
-					printf("Start finding data\n");
-					gateway.pkt_type        = FIND_DATA;
-                			gateway.destination_id  = raspi.id_handling;
-                			gettimeofday(&tim, NULL);
-                			sys_tim = localtime(&tim.tv_sec);
-                			memset(gateway.data, 0, PACKET_SIZE - BASE_DATA);
-                			sprintf(gateway.data, "%d %d %d", sys_tim->tm_hour, sys_tim->tm_min, sys_tim->tm_sec);
-                			gateway.data_length = strlen(gateway.data);
-                			format_pkt(gateway, tx_buff);
-                			lora_transmit(tx_buff);
-					timeout = SCAN_DURATION/2;
-					timeout_flag = 1;
-				}
 			}
 			if (raspi.status != HANDLED && sock_status && node_count > 0)
 			{

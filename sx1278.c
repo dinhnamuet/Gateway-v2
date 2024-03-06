@@ -3,7 +3,7 @@
 #include <linux/fs.h>
 #include <linux/spi/spi.h>
 #include <linux/slab.h>
-#include <linux/gpio/consumer.h> /* For GPIO Descriptor */
+#include <linux/gpio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/delay.h>
@@ -11,12 +11,10 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/sched/signal.h>
-#include <linux/workqueue.h>
 #include "./Inc/sx1278.h"
 
 static LIST_HEAD(device_list);
-void workqueue_func(struct work_struct *work);
-DECLARE_WORK(workqueue, workqueue_func);
+
 struct LoRa
 {
 	int irq;
@@ -28,8 +26,9 @@ struct LoRa
 	uint16_t preamble;
 	uint8_t power;
 	uint8_t overCurrentProtection;
-	char *receive_buffer;
-	char *transmit_buffer;
+	uint8_t *receive_buffer;
+	uint8_t *transmit_buffer;
+	uint8_t *cache_buffer;
 	uint8_t rssi_value;
 	dev_t dev_num;
 	char name[10];
@@ -41,6 +40,7 @@ struct LoRa
 	struct cdev *mcdev;
 	struct device *mdevice;
 	struct list_head device_entry;
+	struct tasklet_struct my_tasklet;
 };
 
 struct task_struct *task;
@@ -64,32 +64,53 @@ static void LoRa_free(struct LoRa *_LoRa);
 
 irqreturn_t get_message(int irq, void *dev_id)
 {
-	schedule_work(&workqueue);
+	uint8_t r = 0;
+	struct LoRa *lora = (struct LoRa *)dev_id;
+	r = LoRa_receive(lora, lora->cache_buffer, PACKET_SIZE);
+	if (r)
+		tasklet_schedule(&lora->my_tasklet);
 	return IRQ_HANDLED;
 }
-
-void workqueue_func(struct work_struct *work)
+void tasklet_fn(unsigned long args)
 {
+	struct LoRa *lora = (struct LoRa *)args;
 	struct siginfo info;
 	memset(&info, 0, sizeof(struct siginfo));
 	info.si_signo = SIGUSR1;
 	info.si_code = SI_QUEUE;
-	if (task)
+
+	if (!strncmp(lora->cache_buffer, lora->transmit_buffer, strlen(lora->cache_buffer)))
+		memset(lora->cache_buffer, 0, PACKET_SIZE);
+	else
 	{
-		if (send_sig_info(info.si_signo, (struct kernel_siginfo *)&info, task) < 0)
-			printk(KERN_ERR "Cannot send signal to process\n");
+		if (strncmp(lora->cache_buffer, lora->receive_buffer, strlen(lora->cache_buffer)))
+		{
+			memset(lora->receive_buffer, 0, PACKET_SIZE);
+			strncpy(lora->receive_buffer, lora->cache_buffer, strlen(lora->cache_buffer));
+
+			if (task)
+			{
+				if (send_sig_info(info.si_signo, (struct kernel_siginfo *)&info, task) < 0)
+					printk(KERN_ERR "Cannot send signal to process\n");
+				else
+					printk(KERN_INFO "Signal was sent to %d\n", task->pid);
+			}
+		}
 		else
-			printk(KERN_INFO "Signal was sent to %d\n", task->pid);
+			memset(lora->cache_buffer, 0, PACKET_SIZE);
 	}
 }
 static int sx1278_open(struct inode *inodep, struct file *filep)
 {
 	int status = -ENXIO;
 	struct LoRa *lora = NULL;
-	list_for_each_entry(lora, &device_list, device_entry) if (lora->dev_num == inodep->i_rdev)
+	list_for_each_entry(lora, &device_list, device_entry)
 	{
-		status = 0;
-		break;
+		if (lora->dev_num == inodep->i_rdev)
+		{
+			status = 0;
+			break;
+		}
 	}
 	if (status)
 	{
@@ -97,7 +118,7 @@ static int sx1278_open(struct inode *inodep, struct file *filep)
 		return status;
 	}
 	filep->private_data = lora;
-	printk(KERN_INFO "Device %s opened\n", filep->f_path.dentry->d_name.name);
+	/* printk(KERN_INFO "Device %s opened\n", filep->f_path.dentry->d_name.name); */
 	return 0;
 }
 static int sx1278_close(struct inode *inodep, struct file *filep)
@@ -108,20 +129,14 @@ static int sx1278_close(struct inode *inodep, struct file *filep)
 static ssize_t sx1278_read(struct file *filep, char __user *user_buff, size_t size, loff_t *offset)
 {
 	int to_read = 0;
-	uint8_t r;
 	struct LoRa *lora = filep->private_data;
-	memset(lora->receive_buffer, 0, PACKET_SIZE);
-	r = LoRa_receive(lora, lora->receive_buffer, PACKET_SIZE);
-	if (r)
+	to_read = (size > strlen(lora->receive_buffer) - *offset) ? (strlen(lora->receive_buffer) - *offset) : (size);
+	if (copy_to_user(user_buff, lora->receive_buffer, strlen(lora->receive_buffer)) != 0)
 	{
-		to_read = (size > strlen(lora->receive_buffer) - *offset) ? (strlen(lora->receive_buffer) - *offset) : (size);
-		if (copy_to_user(user_buff, lora->receive_buffer, strlen(lora->receive_buffer)) != 0)
-		{
-			return -EFAULT;
-		}
-		*offset += to_read;
-		printk(KERN_INFO "received: %s\n", &lora->receive_buffer[10]);
+		return -EFAULT;
 	}
+	*offset += to_read;
+	printk(KERN_INFO "received: %s\n", &lora->receive_buffer[10]);
 	return to_read;
 }
 static ssize_t sx1278_write(struct file *filep, const char *user_buff, size_t size, loff_t *offset)
@@ -182,8 +197,7 @@ static struct file_operations fops = {
 	.release = sx1278_close,
 	.read = sx1278_read,
 	.write = sx1278_write,
-	.unlocked_ioctl = sx1278_ioctl
-};
+	.unlocked_ioctl = sx1278_ioctl};
 
 static int sx1278_probe(struct spi_device *spi)
 {
@@ -257,6 +271,17 @@ static int sx1278_probe(struct spi_device *spi)
 		printk(KERN_ERR "Allocate failure\n");
 		goto rm_buff_rec;
 	}
+	sx1278->cache_buffer = kzalloc(PACKET_SIZE, GFP_KERNEL);
+	if (sx1278->cache_buffer == NULL)
+	{
+		printk(KERN_ERR "Allocate failure\n");
+		goto rm_buff_tr;
+	}
+	sx1278->my_tasklet.next = NULL;
+	sx1278->my_tasklet.state = TASKLET_STATE_SCHED;
+	atomic_set(&sx1278->my_tasklet.count, 0);
+	sx1278->my_tasklet.func = tasklet_fn;
+	sx1278->my_tasklet.data = (unsigned long)sx1278;
 	if (LoRa_init(sx1278) != LORA_OK)
 	{
 		printk(KERN_ERR "LoRa init failure\n");
@@ -270,6 +295,8 @@ static int sx1278_probe(struct spi_device *spi)
 	return 0;
 rm_lora:
 	LoRa_free(sx1278);
+	kfree(sx1278->cache_buffer);
+rm_buff_tr:
 	kfree(sx1278->transmit_buffer);
 rm_buff_rec:
 	kfree(sx1278->receive_buffer);
@@ -293,8 +320,10 @@ static void sx1278_remove(struct spi_device *spi)
 	}
 	else
 	{
+		tasklet_kill(&sx1278->my_tasklet);
 		kfree(sx1278->receive_buffer);
 		kfree(sx1278->transmit_buffer);
+		kfree(sx1278->cache_buffer);
 		gpiod_set_value(sx1278->reset, 0);
 		LoRa_free(sx1278);
 		device_destroy(sx1278->mclass, sx1278->dev_num);
@@ -512,7 +541,6 @@ static uint8_t LoRa_receive(struct LoRa *_LoRa, uint8_t *data, uint8_t length)
 			data[i] = LoRa_Read(_LoRa, RegFifo);
 	}
 	LoRa_gotoMode(_LoRa, RXCONTINUOUS_MODE);
-	// LoRa_startReceiving(_LoRa);
 	return min;
 }
 static uint8_t LoRa_getRSSI(struct LoRa *_LoRa)
@@ -527,7 +555,7 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 	uint8_t read;
 	/* lora pin init */
 	// DIO0 rising interrupt:
-	if (request_irq(_LoRa->irq, get_message, IRQF_TRIGGER_RISING, "sx-1278", NULL) < 0)
+	if (request_irq(_LoRa->irq, get_message, IRQF_TRIGGER_RISING, _LoRa->name, _LoRa) < 0)
 	{
 		printk(KERN_ERR "Request irq failure\n");
 		return -1;
@@ -603,7 +631,7 @@ static void LoRa_free(struct LoRa *_LoRa)
 {
 	gpiod_put(_LoRa->reset);
 	gpiod_put(_LoRa->dio0);
-	free_irq(_LoRa->irq, NULL);
+	free_irq(_LoRa->irq, _LoRa);
 }
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("20021163@vnu.edu.vn");
