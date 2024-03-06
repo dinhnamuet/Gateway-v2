@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "gateway.h": "c",
+        "sx1278.h": "c",
+        "typeinfo": "c"
+    }
+}

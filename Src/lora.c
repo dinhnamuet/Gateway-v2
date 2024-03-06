@@ -6,6 +6,10 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #define SX1278 "/dev/lora-0"
+void LoRa_start(void)
+{
+	LoRa_gotoMode(RXCONTINOUS);
+}
 int lora_transmit(uint8_t *data)
 {
     int fd = open(SX1278, O_RDWR);
@@ -115,4 +119,102 @@ int LoRa_gotoMode(int mode)
     close(fd);
     return 0;
 }
-
+int LoRa_setFrequency(int frequency)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, FREQUENCY, &frequency) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}
+int LoRa_setSpreadingFactor(uint8_t SF)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, SPREADING_FACTOR, &SF) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}
+int LoRa_setPower(uint8_t power)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, POWER, &power) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}
+int LoRa_setBandWidth(uint8_t BW)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, BAND_WIDTH, &BW) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}
+int LoRa_getRSSI(void)
+{
+	int fd;
+	int rssi;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, GET_RSSI, &rssi) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return rssi - 164;
+}
+int LoRa_setCodingRate(uint8_t cR)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, CODING_RATE, &cR) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}
+int LoRa_setSyncWord(uint8_t syncword)
+{
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, SYNC_WORD, &syncword) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return 0;
+}

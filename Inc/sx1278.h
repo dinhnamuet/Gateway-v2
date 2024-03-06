@@ -11,7 +11,15 @@
 #define TRANSMIT_SET _IO('U', 15)
 #define RXCONTINOUS_SET _IO('U', 16)
 #define RXSINGLE_SET _IO('U', 17)
-#define GET_RSSI _IOW('a', '1', uint8_t *)
+
+#define GET_RSSI            _IOR('a', '1', uint8_t *)
+#define SPREADING_FACTOR    _IOW('a', '2', uint8_t *)
+#define BAND_WIDTH          _IOW('a', '3', uint8_t *)
+#define CODING_RATE         _IOW('a', '4', uint8_t *)
+#define SYNC_WORD           _IOW('a', '5', uint8_t *)
+#define FREQUENCY           _IOW('a', '6', int *)
+#define POWER               _IOW('a', '7', uint8_t *)
+
 
 #define DEV_NAME		"lora"
 /* lora register address */
@@ -33,12 +41,14 @@
 #define RegPktRssiValue					0x1A
 #define	RegModemConfig1					0x1D
 #define RegModemConfig2					0x1E
+#define RegModemConfig3                 0x26
 #define RegSymbTimeoutL					0x1F
 #define RegPreambleMsb					0x20
 #define RegPreambleLsb					0x21
 #define RegPayloadLength				0x22
 #define RegDioMapping1					0x40
 #define RegDioMapping2					0x41
+#define RegSyncWord                     0x39
 #define RegVersion					0x42
 /*lora operation mode */
 #define SLEEP_MODE					0

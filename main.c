@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
 		signal(SIGINT, sig_int);
 		signal(SIGUSR1, sig_usr);
 		signal(SIGUSR2, handler);
+		LoRa_start();
 		register_recv_signal_from_driver();
 		printf("LoRa GateWay init is successfully!\n");
 		gateway.uid		= GATEWAY_ID;

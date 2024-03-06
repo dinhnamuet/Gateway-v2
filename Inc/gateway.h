@@ -1,16 +1,6 @@
 #ifndef __GATEWAY_H__
 #define __GATEWAY_H__
 #include <stdint.h>
-#define RG_SIGNAL _IO('U', 11)
-#define CTL_SIGNAL _IO('U', 12)
-#define GET_RSSI _IOW('a', '1', uint8_t *)
-
-#define SLEEP_SET _IO('U', 13)
-#define STANDBY_SET _IO('U', 14)
-#define TRANSMIT_SET _IO('U', 15)
-#define RXCONTINOUS_SET _IO('U', 16)
-#define RXSINGLE_SET _IO('U', 17)
-
 
 #define BASE_DATA	10
 #define PACKET_SIZE	60
