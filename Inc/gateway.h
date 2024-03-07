@@ -22,12 +22,6 @@
 #define REQUEST_DATA 	2
 #define RESPONSE_DATA 	3
 
-#define	SLEEP		0
-#define	STANDBY		1
-#define	TRANSMIT	2
-#define	RXCONTINOUS	3
-#define RXSINGLE	4
-
 #pragma pack(1)
 
 struct time_set

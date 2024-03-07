@@ -8,7 +8,7 @@
 #define SX1278 "/dev/lora-0"
 void LoRa_start(void)
 {
-	LoRa_gotoMode(RXCONTINOUS);
+	LoRa_gotoMode(RXCONTINUOUS_MODE);
 }
 int lora_transmit(uint8_t *data)
 {
@@ -88,7 +88,6 @@ void LoRa_init(struct LoRa_node *LoRa, uint32_t new_id)
     LoRa->illuminance            = 0;
     LoRa->light_sensor_value    = 0;
     LoRa->voltage               = 0;
-    //memset(LoRa->working_time, 0, sizeof(struct time_set));
 }
 int LoRa_gotoMode(int mode)
 {
@@ -96,26 +95,7 @@ int LoRa_gotoMode(int mode)
     fd = open(SX1278, O_RDWR);
     if (-1 == fd)
         return -1;
-    switch(mode)
-    {
-	case SLEEP:
-		ioctl(fd, SLEEP_SET, NULL);
-		break;
-	case STANDBY:
-		ioctl(fd, STANDBY_SET, NULL);
-		break;
-	case TRANSMIT:
-		ioctl(fd, TRANSMIT_SET, NULL);
-		break;
-	case RXCONTINOUS:
-		ioctl(fd, RXCONTINOUS_SET, NULL);
-		break;
-	case RXSINGLE:
-		ioctl(fd, RXSINGLE_SET, NULL);
-		break;
-	default:
-		break;
-    }
+	ioctl(fd, GOTO_MODE, &mode);
     close(fd);
     return 0;
 }

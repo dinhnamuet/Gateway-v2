@@ -6,11 +6,7 @@
 #define RG_SIGNAL _IO('U', 11)
 #define CTL_SIGNAL _IO('U', 12)
 
-#define SLEEP_SET _IO('U', 13)
-#define STANDBY_SET _IO('U', 14)
-#define TRANSMIT_SET _IO('U', 15)
-#define RXCONTINOUS_SET _IO('U', 16)
-#define RXSINGLE_SET _IO('U', 17)
+#define GOTO_MODE _IOW('m', '1', int *)
 
 #define GET_RSSI            _IOR('a', '1', uint8_t *)
 #define SPREADING_FACTOR    _IOW('a', '2', uint8_t *)

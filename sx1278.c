@@ -176,20 +176,9 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 			return -1;
 		}
 		break;
-	case SLEEP_SET:
-		LoRa_gotoMode(sx1278, SLEEP_MODE);
-		break;
-	case STANDBY_SET:
-		LoRa_gotoMode(sx1278, STANDBY_MODE);
-		break;
-	case TRANSMIT_SET:
-		LoRa_gotoMode(sx1278, TRANSMIT_MODE);
-		break;
-	case RXCONTINOUS_SET:
-		LoRa_gotoMode(sx1278, RXCONTINUOUS_MODE);
-		break;
-	case RXSINGLE_SET:
-		LoRa_gotoMode(sx1278, RXSINGLE_MODE);
+	case GOTO_MODE:
+		if (!copy_from_user(&foo ,(int *)data, sizeof(int *)))
+			LoRa_gotoMode(sx1278, foo);
 		break;
 	case BAND_WIDTH:
 		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
@@ -212,7 +201,7 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 			LoRa_setPower(sx1278, (uint8_t)foo);
 		break;
 	case FREQUENCY:
-		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
+		if (!copy_from_user(&foo ,(int *)data, sizeof(int *)))
 			LoRa_setFrequency(sx1278, foo);
 		break;
 	default:
@@ -245,6 +234,7 @@ static int sx1278_probe(struct spi_device *spi)
 	gpiod_set_value(sx1278->reset, 1);
 	sx1278->dio0 = gpiod_get_index(dev, "dio", 0, GPIOD_IN);
 	sx1278->dio3 = gpiod_get_index(dev, "dio", 1, GPIOD_IN);
+	gpiod_set_value(sx1278->dio3, 0);
 	sx1278->irq = gpiod_to_irq(sx1278->dio0);
 	/* spi configuration */
 	sx1278->spi = spi;
@@ -440,6 +430,10 @@ static void LoRa_gotoMode(struct LoRa *_LoRa, int mode)
 		data = (read & 0xF8) | RXSINGLE_MODE;
 		_LoRa->current_mode = RXSINGLE_MODE;
 		break;
+	case CAD:
+		data = (read & 0xF8) | CAD;
+		_LoRa->current_mode = CAD;
+		break;
 	default:
 		break;
 	}
@@ -570,6 +564,7 @@ static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, 
 	int mode = _LoRa->current_mode;
 	LoRa_gotoMode(_LoRa, STANDBY_MODE);
 	msleep(1);
+	/* Channel Activity Detection */
 	while(1)
 	{
 		LoRa_gotoMode(_LoRa, CAD);
@@ -586,7 +581,7 @@ static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, 
 		}
 		msleep(1);
 	}
-	
+	/* send data */
 	LoRa_gotoMode(_LoRa, STANDBY_MODE);
 	read = LoRa_Read(_LoRa, RegFiFoTxBaseAddr);
 	LoRa_Write(_LoRa, RegFiFoAddPtr, read);
