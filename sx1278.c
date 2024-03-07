@@ -177,7 +177,7 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 		}
 		break;
 	case GOTO_MODE:
-		if (!copy_from_user(&foo ,(int *)data, sizeof(int *)))
+		if (!copy_from_user(&foo ,(int *)data, sizeof(int)))
 			LoRa_gotoMode(sx1278, foo);
 		break;
 	case BAND_WIDTH:
@@ -201,7 +201,7 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 			LoRa_setPower(sx1278, (uint8_t)foo);
 		break;
 	case FREQUENCY:
-		if (!copy_from_user(&foo ,(int *)data, sizeof(int *)))
+		if (!copy_from_user(&foo ,(int *)data, sizeof(int)))
 			LoRa_setFrequency(sx1278, foo);
 		break;
 	default:
