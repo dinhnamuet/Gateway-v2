@@ -36,7 +36,6 @@ struct LoRa
 	struct spi_device *spi;
 	struct gpio_desc *reset;
 	struct gpio_desc *dio0;
-	struct gpio_desc *dio3;
 	struct class *mclass;
 	struct cdev *mcdev;
 	struct device *mdevice;
@@ -232,9 +231,7 @@ static int sx1278_probe(struct spi_device *spi)
 	/* config reset & dio0 */
 	sx1278->reset = gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
 	gpiod_set_value(sx1278->reset, 1);
-	sx1278->dio0 = gpiod_get_index(dev, "dio", 0, GPIOD_IN);
-	sx1278->dio3 = gpiod_get_index(dev, "dio", 1, GPIOD_IN);
-	gpiod_set_value(sx1278->dio3, 0);
+	sx1278->dio0 = gpiod_get(dev, "dio0", GPIOD_IN);
 	sx1278->irq = gpiod_to_irq(sx1278->dio0);
 	/* spi configuration */
 	sx1278->spi = spi;
@@ -568,7 +565,10 @@ static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, 
 	while(1)
 	{
 		LoRa_gotoMode(_LoRa, CAD);
-		while(!gpiod_get_value(_LoRa->dio3));
+		while(!(LoRa_Read(_LoRa, RegIrqFlags)>>2 & 0x01))
+		{
+			msleep(1);
+		}
 		read = LoRa_Read(_LoRa, RegIrqFlags);
 		if(read & 0x01) //CAD detected
 		{
@@ -577,7 +577,6 @@ static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, 
 		else
 		{
 			LoRa_Write(_LoRa, RegIrqFlags, 0xFF);
-			LoRa_gotoMode(_LoRa, mode);
 			break;
 		}
 		msleep(1);
@@ -725,7 +724,6 @@ static void LoRa_free(struct LoRa *_LoRa)
 {
 	gpiod_put(_LoRa->reset);
 	gpiod_put(_LoRa->dio0);
-	gpiod_put(_LoRa->dio3);
 	free_irq(_LoRa->irq, _LoRa);
 }
 
