@@ -576,6 +576,7 @@ static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, 
 		}
 		else
 		{
+			LoRa_Write(_LoRa, RegIrqFlags, 0xFF);
 			LoRa_gotoMode(_LoRa, mode);
 			break;
 		}
