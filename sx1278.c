@@ -36,6 +36,7 @@ struct LoRa
 	struct spi_device *spi;
 	struct gpio_desc *reset;
 	struct gpio_desc *dio0;
+	struct gpio_desc *dio3;
 	struct class *mclass;
 	struct cdev *mcdev;
 	struct device *mdevice;
@@ -242,7 +243,8 @@ static int sx1278_probe(struct spi_device *spi)
 	/* config reset & dio0 */
 	sx1278->reset = gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
 	gpiod_set_value(sx1278->reset, 1);
-	sx1278->dio0 = gpiod_get(dev, "dio0", GPIOD_IN);
+	sx1278->dio0 = gpiod_get_index(dev, "dio", 0, GPIOD_IN);
+	sx1278->dio3 = gpiod_get_index(dev, "dio", 1, GPIOD_IN);
 	sx1278->irq = gpiod_to_irq(sx1278->dio0);
 	/* spi configuration */
 	sx1278->spi = spi;
@@ -367,13 +369,15 @@ static void sx1278_remove(struct spi_device *spi)
 
 static struct spi_device_id sx1278_id_table[] = {
 	{"sx1278", 0},
-	{}};
+	{	}
+};
 MODULE_DEVICE_TABLE(spi, sx1278_id_table);
 static const struct of_device_id sx1278_of_match_id[] = {
 	{
 		.compatible = "sx1278-lora,nam",
 	},
-	{}};
+	{	}
+};
 MODULE_DEVICE_TABLE(of, sx1278_of_match_id);
 
 static struct spi_driver sx1278_driver = {
@@ -559,10 +563,30 @@ static uint8_t LoRa_isValid(struct LoRa *_LoRa)
 	(void)_LoRa;
 	return 1;
 }
+
 static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, uint16_t timeout)
 {
 	uint8_t read;
 	int mode = _LoRa->current_mode;
+	LoRa_gotoMode(_LoRa, STANDBY_MODE);
+	msleep(1);
+	while(1)
+	{
+		LoRa_gotoMode(_LoRa, CAD);
+		while(!gpiod_get_value(_LoRa->dio3));
+		read = LoRa_Read(_LoRa, RegIrqFlags);
+		if(read & 0x01) //CAD detected
+		{
+			LoRa_Write(_LoRa, RegIrqFlags, 0xFF);
+		}
+		else
+		{
+			LoRa_gotoMode(_LoRa, mode);
+			break;
+		}
+		msleep(1);
+	}
+	
 	LoRa_gotoMode(_LoRa, STANDBY_MODE);
 	read = LoRa_Read(_LoRa, RegFiFoTxBaseAddr);
 	LoRa_Write(_LoRa, RegFiFoAddPtr, read);
@@ -705,9 +729,9 @@ static void LoRa_free(struct LoRa *_LoRa)
 {
 	gpiod_put(_LoRa->reset);
 	gpiod_put(_LoRa->dio0);
+	gpiod_put(_LoRa->dio3);
 	free_irq(_LoRa->irq, _LoRa);
 }
-
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("20021163@vnu.edu.vn");
