@@ -287,68 +287,42 @@
 	pinctrl-0 = <&uart1_pins>;
 };
 
-//&spi0 {
-//	pinctrl-names = "default";
-//	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
-//	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
-//
-//	spidev0: spidev@0{
-//		compatible = "spidev";
-//		reg = <0>;	/* CE0 */
-//		#address-cells = <1>;
-//		#size-cells = <0>;
-//		spi-max-frequency = <125000000>;
-//	};
-//
-//	spidev1: spidev@1{
-//		compatible = "spidev";
-//		reg = <1>;	/* CE1 */
-//		#address-cells = <1>;
-//		#size-cells = <0>;
-//		spi-max-frequency = <125000000>;
-//	};
-//};
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 
+	spidev0: spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+
+	spidev1: spidev@1{
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+};
 
 &spi3 {
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi3_gpio0>;
-	cs-gpios = <&gpio 0 1>;
-
+	cs-gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
+	
 	sx1278lora: sx1278-lora@0 {
 		compatible = "sx1278-lora,nam";
 		reg = <0>;
 		
-		//pinctrl-names = "default";
-		//pinctrl-0 = <&spi0_gpio8>;	
 		spi-max-frequency = <10000000>;
-		dio0-gpios = <&gpio 5 GPIO_ACTIVE_LOW>;
+		dio-gpios = <&gpio 5 GPIO_ACTIVE_LOW>, <&gpio 4 GPIO_ACTIVE_LOW>;
 		reset-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>;
 		status = "okay";
-	};
-};
-&spi1 {
-	status = "okay";
-	#address-cells = <1>;
-	#size-cells = <0>;
-	cs-gpios = <&gpio 18 1>;
-	dinhnamdisplay: dinhnam-display@0 {
-		compatible = "ilitek,ili9341";
-		reg = <0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&spi1_gpio18>;
-
-		spi-max-frequency = <20000000>;
-		width = <320>;
-		height = <240>;
-		regwidth = <8>;
-		rotate = <180>;
-		fps = <30>;
-		led-gpios = <&gpio 25 GPIO_ACTIVE_LOW>;
-		buswidth = <8>;
-		reset-gpios = <&gpio 23 GPIO_ACTIVE_LOW>;
-		dc-gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -377,12 +351,6 @@
 		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
 		brcm,pull = <0 2 2 0>;
 	};
-};
-
-&pwm {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pwm0_0_gpio12 &pwm0_1_gpio13>;
-	status = "okay";
 };
 
 &i2c0if {
