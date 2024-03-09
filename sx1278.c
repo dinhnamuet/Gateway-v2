@@ -355,14 +355,13 @@ static void sx1278_remove(struct spi_device *spi)
 }
 
 static struct spi_device_id sx1278_id_table[] = {
-	{"sx1278", 0},
+	{ "sx1278lora", 0 },
 	{	}
 };
 MODULE_DEVICE_TABLE(spi, sx1278_id_table);
+
 static const struct of_device_id sx1278_of_match_id[] = {
-	{
-		.compatible = "sx1278-lora,nam",
-	},
+	{ .compatible = "sx1278-lora,nam", },
 	{	}
 };
 MODULE_DEVICE_TABLE(of, sx1278_of_match_id);
