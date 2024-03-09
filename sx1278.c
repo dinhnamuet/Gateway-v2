@@ -140,7 +140,7 @@ static ssize_t sx1278_read(struct file *filep, char __user *user_buff, size_t si
 		return -EFAULT;
 	}
 	*offset += to_read;
-	printk(KERN_INFO "received: %s\n", &lora->receive_buffer[10]);
+//	printk(KERN_INFO "received: %s\n", &lora->receive_buffer[10]);
 	return to_read;
 }
 static ssize_t sx1278_write(struct file *filep, const char *user_buff, size_t size, loff_t *offset)
@@ -150,7 +150,7 @@ static ssize_t sx1278_write(struct file *filep, const char *user_buff, size_t si
 	if (copy_from_user(sx1278->transmit_buffer, user_buff, size) != 0)
 		return -EFAULT;
 	LoRa_transmit(sx1278, sx1278->transmit_buffer, (uint8_t)strlen(sx1278->transmit_buffer), TX_TIME_OUT);
-	printk(KERN_INFO "transmit: %s\n", sx1278->transmit_buffer);
+//	printk(KERN_INFO "transmit: %s\n", sx1278->transmit_buffer);
 	return size;
 }
 static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long data)
@@ -161,10 +161,10 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 	{
 	case RG_SIGNAL:
 		sx1278->task = get_current();
-		printk(KERN_INFO "process with pid %d registerd to recv signal\n", sx1278->task->pid); 
+//		printk(KERN_INFO "process with pid %d registerd to recv signal\n", sx1278->task->pid); 
 		break;
 	case CTL_SIGNAL:
-		printk(KERN_INFO "process wid pid %d stop recv signal\n", sx1278->task->pid); 
+//		printk(KERN_INFO "process wid pid %d stop recv signal\n", sx1278->task->pid); 
 		sx1278->task = NULL;
 		break;
 	case GET_RSSI:
@@ -309,8 +309,8 @@ static int sx1278_probe(struct spi_device *spi)
 	INIT_LIST_HEAD(&sx1278->device_entry);
 	list_add(&sx1278->device_entry, &device_list);
 	LoRa_gotoMode(sx1278, SLEEP_MODE);
-	printk(KERN_INFO "LoRa %s success!\n", sx1278->name);
-	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
+	printk(KERN_EMERG "%s has been loadded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
+//	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
 	return 0;
 rm_lora:
 	LoRa_free(sx1278);

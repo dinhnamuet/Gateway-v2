@@ -41,6 +41,7 @@ void sig_chld(int num);
 void sig_int(int num);
 void sig_usr(int num);
 static void scan_node_list(struct device_command *dev);
+static void scand_node_data(struct device_command *dev);
 static void block_sigusr1(void);
 static void unblock_sigusr1(void);
 
@@ -103,7 +104,6 @@ void *recv_msg(void *args)
 					kill(ppid, SIGUSR2);
 					break;
 				case MODE_MANUAL:
-					printf("Set Manual\n");
 					token = strtok(NULL, " ");
 					new->request = MODE_MANUAL;
 					new->id_to_handler = atoi(token);
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 		LoRa_start();
 		register_recv_signal_from_driver();
 		printf("LoRa GateWay init is successfully!\n");
-		gateway.uid		= GATEWAY_ID;
+		gateway.uid = GATEWAY_ID;
 		while (1)
 		{
 			if (node_count > 0)
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 			}
 			while (--timeout)
 			{
-				if(raspi.status == HANDLED)
+				if (raspi.status == HANDLED)
 					break;
 				if (rx_sig)
 					get_data_from_node(share_device, &raspi);
@@ -281,12 +281,14 @@ int main(int argc, char *argv[])
 						break;
 					case GOT_SOCK:
 						scan_node_list(share_device);
+						scand_node_data(share_device);
 						sock_status = 1;
 						break;
 					case CTL_SOCK:
 						sock_status = 0;
 						break;
 					case MODE_MANUAL:
+						printf("Start set mode manual\n");
 						for (tmp = 0; tmp < node_count; tmp++)
 						{
 							if (share_device->id_to_handler == newLoRa[tmp].id)
@@ -346,7 +348,7 @@ int main(int argc, char *argv[])
 					sleep(0.1);
 				}
 			}
-			else if(raspi.status == HANDLED)
+			else if (raspi.status == HANDLED)
 				sleep(1);
 			timeout = SCAN_DURATION;
 		}
@@ -474,20 +476,35 @@ static void scan_node_list(struct device_command *dev)
 			sleep(0.1);
 		}
 	}
-	printf("Done!\n");
+}
+static void scand_node_data(struct device_command *dev)
+{
+	for (int i = 0; i < node_count; i++)
+	{
+		memset(dev->data_to_send, 0, 1024);
+		sprintf(dev->data_to_send, "%d %d %d %d %f %f %d", DATA_AVAILABLE, newLoRa[i].id, newLoRa[i].light_sensor_value, newLoRa[i].illuminance,
+				newLoRa[i].voltage, newLoRa[i].current, newLoRa[i].current_mode);
+		dev->request = DATA_AVAILABLE;
+		dev->ack = 0;
+		kill(pid, SIGUSR2);
+		while (!(dev->ack))
+		{
+			sleep(0.1);
+		}
+	}
 }
 static int get_data_from_node(struct device_command *dev, struct handling *node)
 {
 	char buff[PACKET_SIZE];
 	block_sigusr1();
-	if(node->status == HANDLED)
+	if (node->status == HANDLED)
 	{
 		rx_sig = 0;
 		return -1;
 	}
 	memset(buff, 0, PACKET_SIZE);
 	lora_receive(buff);
-	if(buff)
+	if (buff)
 		handler_rx_data(buff, dev, node);
 	unblock_sigusr1();
 	rx_sig = 0;
@@ -496,14 +513,14 @@ static int get_data_from_node(struct device_command *dev, struct handling *node)
 static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct handling *node)
 {
 	uint8_t i;
-	int ret_val, _light, _ill,_mode;
+	int ret_val, _light, _ill, _mode;
 	float _vol, _curr;
 	struct LoRa_packet foo;
 	/* Unpack LoRa packet */
 	foo.pkt_type = buff[0];
-	if(foo.pkt_type != RESPONSE_DATA)
+	if (foo.pkt_type != RESPONSE_DATA)
 	{
-		//LoRa_gotoMode(RXSINGLE);
+		// LoRa_gotoMode(RXSINGLE);
 		return -1;
 	}
 	foo.uid = (uint32_t)(buff[1] << 24 | buff[2] << 16 | buff[3] << 8 | buff[4]);
@@ -522,13 +539,13 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 			if (foo.uid == newLoRa[i].id)
 			{
 				ret_val = sscanf(foo.data, "%d %d %f %f %d", &_light, &_ill, &_vol, &_curr, &_mode);
-				if(ret_val == 5)
+				if (ret_val == 5)
 				{
-					newLoRa[i].light_sensor_value	= _light;
-				       	newLoRa[i].illuminance		= _ill;
-					newLoRa[i].voltage		= _vol;
-					newLoRa[i].current		= _curr;
-					newLoRa[i].current_mode		= _mode;
+					newLoRa[i].light_sensor_value = _light;
+					newLoRa[i].illuminance = _ill;
+					newLoRa[i].voltage = _vol;
+					newLoRa[i].current = _curr;
+					newLoRa[i].current_mode = _mode;
 					db_update_data(newLoRa[i]);
 				}
 				else
@@ -536,7 +553,7 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 					printf("Data format does not match\n");
 					return -1;
 				}
-				if(sock_status)
+				if (sock_status)
 				{
 					memset(dev->data_to_send, 0, 1024);
 					sprintf(dev->data_to_send, "%d %d %s", DATA_AVAILABLE, newLoRa[i].id, foo.data);
@@ -581,10 +598,10 @@ static void block_sigusr1(void)
 {
 	sigemptyset(&newmask);
 	sigaddset(&newmask, SIGUSR1);
- 	sigprocmask(SIG_BLOCK, &newmask, NULL);
+	sigprocmask(SIG_BLOCK, &newmask, NULL);
 }
 static void unblock_sigusr1(void)
 {
 	sigprocmask(SIG_UNBLOCK, &newmask, NULL);
 }
-/* RESPONSE PACKET DATA:	light intensity +  illuminance + voltage + current */
+/* RESPONSE PACKET DATA:	light intensity +  illuminance + voltage + current + currentMode*/
