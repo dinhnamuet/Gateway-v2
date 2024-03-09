@@ -1,0 +1,9 @@
+menu "Device driver for sx1278"
+
+config SX1278_LORA
+	bool "sx1278 driver"
+	#depends on ARM
+	#default y if ARM
+	help
+	  Select this option to run sx1278 device!
+endmenu

@@ -11,7 +11,7 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/sched/signal.h>
-#include "./Inc/sx1278.h"
+#include "sx1278.h"
 
 static LIST_HEAD(device_list);
 
