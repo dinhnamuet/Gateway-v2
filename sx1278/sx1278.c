@@ -97,8 +97,8 @@ void tasklet_fn(unsigned long args)
 			{
 				if (send_sig_info(info.si_signo, (struct kernel_siginfo *)&info, lora->task) < 0)
 					printk(KERN_ERR "Cannot send signal to process\n");
-				else
-					printk(KERN_INFO "Signal was sent to %d\n", lora->task->pid);
+//				else
+//					printk(KERN_INFO "Signal was sent to %d\n", lora->task->pid);
 			}
 		}
 		else
@@ -161,10 +161,10 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 	{
 	case RG_SIGNAL:
 		sx1278->task = get_current();
-//		printk(KERN_INFO "process with pid %d registerd to recv signal\n", sx1278->task->pid); 
+		printk(KERN_INFO "process (pid %d) registerd to recv signal\n", sx1278->task->pid); 
 		break;
 	case CTL_SIGNAL:
-//		printk(KERN_INFO "process wid pid %d stop recv signal\n", sx1278->task->pid); 
+		printk(KERN_INFO "process (pid %d) stop recv signal\n", sx1278->task->pid); 
 		sx1278->task = NULL;
 		break;
 	case GET_RSSI:
@@ -309,8 +309,7 @@ static int sx1278_probe(struct spi_device *spi)
 	INIT_LIST_HEAD(&sx1278->device_entry);
 	list_add(&sx1278->device_entry, &device_list);
 	LoRa_gotoMode(sx1278, SLEEP_MODE);
-	printk(KERN_EMERG "%s has been loadded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
-//	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
+	printk(KERN_EMERG "sx1278: %s has been loadded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
 	return 0;
 rm_lora:
 	LoRa_free(sx1278);

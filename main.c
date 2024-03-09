@@ -575,6 +575,7 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 }
 void sig_int(int num)
 {
+	LoRa_gotoMode(SLEEP_MODE);
 	unregister_recv_signal_from_driver();
 	free(newLoRa);
 	shm_unlink(shared);
