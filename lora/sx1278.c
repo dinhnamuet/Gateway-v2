@@ -352,13 +352,13 @@ static void sx1278_remove(struct spi_device *spi)
 	}
 	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
 }
-
+/*
 static struct spi_device_id sx1278_id_table[] = {
 	{ "sx1278lora", 0 },
 	{	}
 };
 MODULE_DEVICE_TABLE(spi, sx1278_id_table);
-
+*/
 static const struct of_device_id sx1278_of_match_id[] = {
 	{ .compatible = "sx1278-lora,nam", },
 	{	}
@@ -373,7 +373,7 @@ static struct spi_driver sx1278_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(sx1278_of_match_id),
 	},
-	.id_table = sx1278_id_table,
+//	.id_table = sx1278_id_table,
 };
 module_spi_driver(sx1278_driver);
 

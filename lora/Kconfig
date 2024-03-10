@@ -3,5 +3,5 @@ menu "sx1278 device driver"
 config SX1278_LORA
 	bool "sx1278 driver"
 	help
-		Select this option to run sx1278 device!
+	  Select this option to run sx1278 device!
 endmenu
