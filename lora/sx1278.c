@@ -11,9 +11,12 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/sched/signal.h>
+#include <linux/mod_devicetable.h>
 #include "sx1278.h"
 
 static LIST_HEAD(device_list);
+dev_t device_number;
+struct class *semtech;
 
 struct LoRa
 {
@@ -36,7 +39,6 @@ struct LoRa
 	struct spi_device *spi;
 	struct gpio_desc *reset;
 	struct gpio_desc *dio0;
-	struct class *mclass;
 	struct cdev *mcdev;
 	struct device *mdevice;
 	struct list_head device_entry;
@@ -65,7 +67,6 @@ static void LoRa_startReceiving(struct LoRa *_LoRa);
 static uint8_t LoRa_receive(struct LoRa *_LoRa, uint8_t *data, uint8_t length);
 static uint8_t LoRa_getRSSI(struct LoRa *_LoRa);
 static uint16_t LoRa_init(struct LoRa *_LoRa);
-static void LoRa_free(struct LoRa *_LoRa);
 
 irqreturn_t get_message(int irq, void *dev_id)
 {
@@ -242,7 +243,6 @@ static int sx1278_probe(struct spi_device *spi)
 	if (spi_setup(spi) < 0)
 	{
 		printk(KERN_ERR "SPI setup failed\n");
-		kfree(sx1278);
 		return -1;
 	}
 	sx1278->frequency = 433;
@@ -254,16 +254,7 @@ static int sx1278_probe(struct spi_device *spi)
 	sx1278->preamble = 8;
 	memset(sx1278->name, 0, sizeof(sx1278->name));
 	sprintf(sx1278->name, "%s-%d", DEV_NAME, sx1278->spi->chip_select);
-	if (alloc_chrdev_region(&sx1278->dev_num, 0, 1, sx1278->name) < 0)
-	{
-		printk(KERN_ERR "Allocate device number failure!\n");
-		return -1;
-	}
-	if ((sx1278->mclass = class_create(THIS_MODULE, DEV_NAME)) == NULL)
-	{
-		printk(KERN_ERR "Create class device failure\n");
-		goto rm_dev_num;
-	}
+	sx1278->dev_num = MKDEV(MAJOR(device_number), sx1278->spi->chip_select);
 	sx1278->mcdev = cdev_alloc();
 	sx1278->mcdev->owner = THIS_MODULE;
 	sx1278->mcdev->dev = sx1278->dev_num;
@@ -271,9 +262,10 @@ static int sx1278_probe(struct spi_device *spi)
 	if (cdev_add(sx1278->mcdev, sx1278->dev_num, 1) < 0)
 	{
 		printk(KERN_ERR "Cdev add failure\n");
-		goto rm_class;
+		return -1;
 	}
-	if ((sx1278->mdevice = device_create(sx1278->mclass, &spi->dev, sx1278->dev_num, sx1278, sx1278->name)) == NULL)
+	sx1278->mdevice = device_create(semtech, &spi->dev, sx1278->dev_num, sx1278, sx1278->name);
+	if (sx1278->mdevice == NULL)
 	{
 		printk(KERN_ERR "create device failure\n");
 		goto rm_cdev;
@@ -309,23 +301,22 @@ static int sx1278_probe(struct spi_device *spi)
 	INIT_LIST_HEAD(&sx1278->device_entry);
 	list_add(&sx1278->device_entry, &device_list);
 	LoRa_gotoMode(sx1278, SLEEP_MODE);
-	printk(KERN_INFO "sx1278: %s has been loaded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
+	printk(KERN_INFO "sx1278: %s is loaded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
 	return 0;
 rm_lora:
-	LoRa_free(sx1278);
+	gpiod_set_value(sx1278->reset, 0);
+	gpiod_put(sx1278->dio0);
+	gpiod_put(sx1278->reset);
+	free_irq(sx1278->irq, sx1278);
 	kfree(sx1278->cache_buffer);
 rm_buff_tr:
 	kfree(sx1278->transmit_buffer);
 rm_buff_rec:
 	kfree(sx1278->receive_buffer);
+rm_device:
+	device_destroy(semtech, sx1278->dev_num);
 rm_cdev:
 	cdev_del(sx1278->mcdev);
-rm_device:
-	device_destroy(sx1278->mclass, sx1278->dev_num);
-rm_class:
-	class_destroy(sx1278->mclass);
-rm_dev_num:
-	unregister_chrdev_region(sx1278->dev_num, 1);
 	return -1;
 }
 
@@ -343,24 +334,22 @@ static void sx1278_remove(struct spi_device *spi)
 		kfree(sx1278->transmit_buffer);
 		kfree(sx1278->cache_buffer);
 		gpiod_set_value(sx1278->reset, 0);
-		LoRa_free(sx1278);
-		device_destroy(sx1278->mclass, sx1278->dev_num);
-		class_destroy(sx1278->mclass);
+		gpiod_put(sx1278->dio0);
+		gpiod_put(sx1278->reset);
+		free_irq(sx1278->irq, sx1278);
+		device_destroy(semtech, sx1278->dev_num);
 		cdev_del(sx1278->mcdev);
 		unregister_chrdev_region(sx1278->dev_num, 1);
+		list_del(&sx1278->device_entry);
 		sx1278->task = NULL;
+		//kfree(sx1278);
 	}
 	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
 }
 
-static struct spi_device_id sx1278_id_table[] = {
-	{ "sx1278", 0 },
-	{	}
-};
-MODULE_DEVICE_TABLE(spi, sx1278_id_table);
-
 static const struct of_device_id sx1278_of_match_id[] = {
-	{ .compatible = "sx1278-lora,nam", },
+	{ .compatible = "sx1278-lora,nam" },
+	{ .compatible = "sx1278-lora,nga" },
 	{	}
 };
 MODULE_DEVICE_TABLE(of, sx1278_of_match_id);
@@ -373,9 +362,40 @@ static struct spi_driver sx1278_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(sx1278_of_match_id),
 	},
-	.id_table = sx1278_id_table,
 };
-module_spi_driver(sx1278_driver);
+
+static int __init sx1278_init(void)
+{
+	if (alloc_chrdev_region(&device_number, 0, 2, DEV_NAME) < 0)
+	{
+		printk(KERN_ERR "Allocate device number failure!\n");
+		return -1;
+	}
+	semtech = class_create(THIS_MODULE, DEV_NAME);
+	if(semtech < 0)
+	{
+		printk(KERN_INFO "Create class failed\n");
+		goto rm_dev_num;
+	}
+	if(spi_register_driver(&sx1278_driver) < 0)
+	{
+		printk(KERN_ERR "Spi register failure\n");
+		goto rm_class;
+	}
+	return 0;
+rm_class:
+	class_destroy(semtech);
+rm_dev_num:
+	unregister_chrdev_region(device_number, 2);
+	return -1;
+}
+static void __exit sx1278_exit(void)
+{
+	spi_unregister_driver(&sx1278_driver);
+	class_destroy(semtech);
+	unregister_chrdev_region(device_number, 2);
+	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
+}
 
 static void LoRa_Write(struct LoRa *_LoRa, uint8_t address, uint8_t value)
 {
@@ -718,14 +738,11 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 		return LORA_UNAVAILABLE;
 	}
 }
-static void LoRa_free(struct LoRa *_LoRa)
-{
-	gpiod_put(_LoRa->reset);
-	gpiod_put(_LoRa->dio0);
-	free_irq(_LoRa->irq, _LoRa);
-}
 
+module_init(sx1278_init);
+module_exit(sx1278_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("20021163@vnu.edu.vn");
 MODULE_DESCRIPTION("SPI Driver for SX1278");
 MODULE_VERSION("1.1");
+
