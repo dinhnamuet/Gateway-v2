@@ -243,8 +243,9 @@ static int sx1278_probe(struct spi_device *spi)
 	if (spi_setup(spi) < 0)
 	{
 		printk(KERN_ERR "SPI setup failed\n");
-		return -1;
+		goto free_resource;
 	}
+	
 	sx1278->frequency = 433;
 	sx1278->spreadingFactor = SF_7;
 	sx1278->bandWidth = BW_125_KHZ;
@@ -254,6 +255,7 @@ static int sx1278_probe(struct spi_device *spi)
 	sx1278->preamble = 8;
 	memset(sx1278->name, 0, sizeof(sx1278->name));
 	sprintf(sx1278->name, "%s-%d", DEV_NAME, sx1278->spi->chip_select);
+	
 	sx1278->dev_num = MKDEV(MAJOR(device_number), sx1278->spi->chip_select);
 	sx1278->mcdev = cdev_alloc();
 	sx1278->mcdev->owner = THIS_MODULE;
@@ -262,7 +264,7 @@ static int sx1278_probe(struct spi_device *spi)
 	if (cdev_add(sx1278->mcdev, sx1278->dev_num, 1) < 0)
 	{
 		printk(KERN_ERR "Cdev add failure\n");
-		return -1;
+		goto free_resource;
 	}
 	sx1278->mdevice = device_create(semtech, &spi->dev, sx1278->dev_num, sx1278, sx1278->name);
 	if (sx1278->mdevice == NULL)
@@ -304,9 +306,7 @@ static int sx1278_probe(struct spi_device *spi)
 	printk(KERN_INFO "sx1278: %s is loaded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
 	return 0;
 rm_lora:
-	gpiod_set_value(sx1278->reset, 0);
-	gpiod_put(sx1278->dio0);
-	gpiod_put(sx1278->reset);
+	tasklet_kill(&sx1278->my_tasklet);
 	free_irq(sx1278->irq, sx1278);
 	kfree(sx1278->cache_buffer);
 rm_buff_tr:
@@ -317,6 +317,10 @@ rm_device:
 	device_destroy(semtech, sx1278->dev_num);
 rm_cdev:
 	cdev_del(sx1278->mcdev);
+free_resource:
+	gpiod_set_value(sx1278->reset, 0);
+	gpiod_put(sx1278->dio0);
+	gpiod_put(sx1278->reset);
 	return -1;
 }
 
@@ -342,14 +346,11 @@ static void sx1278_remove(struct spi_device *spi)
 		unregister_chrdev_region(sx1278->dev_num, 1);
 		list_del(&sx1278->device_entry);
 		sx1278->task = NULL;
-		//kfree(sx1278);
 	}
-	printk(KERN_INFO "%s, %d\n", __func__, __LINE__);
 }
 
 static const struct of_device_id sx1278_of_match_id[] = {
 	{ .compatible = "sx1278-lora,nam" },
-	{ .compatible = "sx1278-lora,nga" },
 	{	}
 };
 MODULE_DEVICE_TABLE(of, sx1278_of_match_id);
@@ -681,6 +682,7 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 		// turn on lora mode:
 		read = LoRa_Read(_LoRa, RegOpMode);
 		msleep(10);
+		
 		data = read | 0x80;
 		LoRa_Write(_LoRa, RegOpMode, data);
 		msleep(100);
@@ -741,8 +743,8 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 
 module_init(sx1278_init);
 module_exit(sx1278_exit);
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("20021163@vnu.edu.vn");
 MODULE_DESCRIPTION("SPI Driver for SX1278");
 MODULE_VERSION("1.1");
-
