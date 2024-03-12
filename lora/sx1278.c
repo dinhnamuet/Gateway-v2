@@ -373,7 +373,7 @@ static int __init sx1278_init(void)
 		return -1;
 	}
 	semtech = class_create(THIS_MODULE, DEV_NAME);
-	if(semtech < 0)
+	if(semtech == NULL)
 	{
 		printk(KERN_INFO "Create class failed\n");
 		goto rm_dev_num;
