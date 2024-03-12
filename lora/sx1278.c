@@ -356,7 +356,7 @@ static struct spi_driver sx1278_driver = {
 	.probe = sx1278_probe,
 	.remove = sx1278_remove,
 	.driver = {
-		.name = "sx1278-lora,nam",
+		.name = "sx1278",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(sx1278_of_match_id),
 	},
