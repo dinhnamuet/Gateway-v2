@@ -12,6 +12,7 @@
 #include <linux/device.h>
 #include <linux/sched/signal.h>
 #include <linux/mod_devicetable.h>
+#include <linux/workqueue.h>
 #include "sx1278.h"
 
 static LIST_HEAD(device_list);
@@ -42,7 +43,7 @@ struct LoRa
 	struct cdev *mcdev;
 	struct device *mdevice;
 	struct list_head device_entry;
-	struct tasklet_struct my_tasklet;
+	struct work_struct workqueue;
 	struct task_struct *task;
 };
 
@@ -74,12 +75,12 @@ irqreturn_t get_message(int irq, void *dev_id)
 	struct LoRa *lora = (struct LoRa *)dev_id;
 	r = LoRa_receive(lora, lora->cache_buffer, PACKET_SIZE);
 	if (r)
-		tasklet_schedule(&lora->my_tasklet);
+		schedule_work(&lora->workqueue);
 	return IRQ_HANDLED;
 }
-void tasklet_fn(unsigned long args)
+void workqueue_fn(struct work_struct *work)
 {
-	struct LoRa *lora = (struct LoRa *)args;
+	struct LoRa *lora = container_of(work, struct LoRa, workqueue);
 	struct siginfo info;
 	memset(&info, 0, sizeof(struct siginfo));
 	info.si_signo = SIGUSR1;
@@ -290,11 +291,9 @@ static int sx1278_probe(struct spi_device *spi)
 		printk(KERN_ERR "Allocate failure\n");
 		goto rm_buff_tr;
 	}
-	sx1278->my_tasklet.next = NULL;
-	sx1278->my_tasklet.state = TASKLET_STATE_SCHED;
-	atomic_set(&sx1278->my_tasklet.count, 0);
-	sx1278->my_tasklet.func = tasklet_fn;
-	sx1278->my_tasklet.data = (unsigned long)sx1278;
+	
+	INIT_WORK(&sx1278->workqueue, workqueue_fn); // init workqueue
+	
 	if (LoRa_init(sx1278) != LORA_OK)
 	{
 		printk(KERN_ERR "LoRa init failure\n");
@@ -306,7 +305,6 @@ static int sx1278_probe(struct spi_device *spi)
 	printk(KERN_INFO "sx1278: %s is loaded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
 	return 0;
 rm_lora:
-	tasklet_kill(&sx1278->my_tasklet);
 	free_irq(sx1278->irq, sx1278);
 	kfree(sx1278->cache_buffer);
 rm_buff_tr:
@@ -333,7 +331,6 @@ static void sx1278_remove(struct spi_device *spi)
 	}
 	else
 	{
-		tasklet_kill(&sx1278->my_tasklet);
 		kfree(sx1278->receive_buffer);
 		kfree(sx1278->transmit_buffer);
 		kfree(sx1278->cache_buffer);
@@ -359,7 +356,7 @@ static struct spi_driver sx1278_driver = {
 	.probe = sx1278_probe,
 	.remove = sx1278_remove,
 	.driver = {
-		.name = "sx1278",
+		.name = "sx1278-lora,nam",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(sx1278_of_match_id),
 	},
