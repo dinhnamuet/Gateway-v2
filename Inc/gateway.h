@@ -5,7 +5,7 @@
 #define BASE_DATA	10
 #define PACKET_SIZE	60
 #define GATEWAY_ID	20021163
-#define SCAN_DURATION	6000
+#define SCAN_DURATION	60000
 #define ADD_DEVICE	0
 #define DATA_AVAILABLE 	1
 #define GOT_SOCK 	2

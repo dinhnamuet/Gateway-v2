@@ -232,7 +232,6 @@ int main(int argc, char *argv[])
 						{
 							memset(share_device->data_to_send, 0, 1024);
 							sprintf(share_device->data_to_send, "%s", "Failed");
-							share_device->request = ADD_DEVICE;
 							share_device->ack = 0;
 							kill(pid, SIGUSR2);
 							while (!(share_device->ack))
@@ -244,7 +243,6 @@ int main(int argc, char *argv[])
 						{
 							memset(share_device->data_to_send, 0, 1024);
 							sprintf(share_device->data_to_send, "%d %d", ADD_DEVICE, share_device->id_to_handler);
-							share_device->request = ADD_DEVICE;
 							share_device->ack = 0;
 							kill(pid, SIGUSR2);
 							while (!(share_device->ack))
@@ -258,7 +256,6 @@ int main(int argc, char *argv[])
 						{
 							memset(share_device->data_to_send, 0, 1024);
 							sprintf(share_device->data_to_send, "%s", "Failed");
-							share_device->request = REMOVE_DEVICE;
 							share_device->ack = 0;
 							kill(pid, SIGUSR2);
 							while (!(share_device->ack))
@@ -270,7 +267,6 @@ int main(int argc, char *argv[])
 						{
 							memset(share_device->data_to_send, 0, 1024);
 							sprintf(share_device->data_to_send, "%d %d", REMOVE_DEVICE, share_device->id_to_handler);
-							share_device->request = REMOVE_DEVICE;
 							share_device->ack = 0;
 							kill(pid, SIGUSR2);
 							while (!(share_device->ack))
@@ -333,14 +329,13 @@ int main(int argc, char *argv[])
 					}
 					socket_flag = 0;
 				}
-				usleep(1000);
+				usleep(100);
 			}
 			if (raspi.status != HANDLED && sock_status && node_count > 0)
 			{
 				printf("ID %d Disconnected\n", raspi.id_handling);
 				memset(share_device->data_to_send, 0, 1024);
 				sprintf(share_device->data_to_send, "%d %d", DISCONNECTED, raspi.id_handling);
-				share_device->request = DISCONNECTED;
 				share_device->ack = 0;
 				kill(pid, SIGUSR2);
 				while (!(share_device->ack))
@@ -469,7 +464,6 @@ static void scan_node_list(struct device_command *dev)
 		memset(dev->data_to_send, 0, 1024);
 		sprintf(dev->data_to_send, "%d %d", ADD_DEVICE, newLoRa[i].id);
 		printf("Sending %s ...!\n", dev->data_to_send);
-		dev->request = ADD_DEVICE;
 		kill(pid, SIGUSR2);
 		while (!(dev->ack))
 		{
@@ -484,7 +478,6 @@ static void scand_node_data(struct device_command *dev)
 		memset(dev->data_to_send, 0, 1024);
 		sprintf(dev->data_to_send, "%d %d %d %d %f %f %d", DATA_AVAILABLE, newLoRa[i].id, newLoRa[i].light_sensor_value, newLoRa[i].illuminance,
 				newLoRa[i].voltage, newLoRa[i].current, newLoRa[i].current_mode);
-		dev->request = DATA_AVAILABLE;
 		dev->ack = 0;
 		kill(pid, SIGUSR2);
 		while (!(dev->ack))
@@ -557,7 +550,6 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 				{
 					memset(dev->data_to_send, 0, 1024);
 					sprintf(dev->data_to_send, "%d %d %s", DATA_AVAILABLE, newLoRa[i].id, foo.data);
-					dev->request = DATA_AVAILABLE;
 					dev->ack = 0;
 					kill(pid, SIGUSR2);
 					while (!(dev->ack))
