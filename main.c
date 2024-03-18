@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
 				}
 			}
 			else if (raspi.status == HANDLED)
-				sleep(1);
+				sleep(3);
 			timeout = SCAN_DURATION;
 		}
 	}
