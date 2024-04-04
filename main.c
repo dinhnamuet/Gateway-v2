@@ -166,6 +166,7 @@ static void handler(int num)
 }
 int main(int argc, char *argv[])
 {
+	printf("LoRa status: %d\n", (int)LoRa_getStatus());
 	int shr_fd = shm_open(shared, O_CREAT | O_RDWR, 666);
 	if (-1 == shr_fd)
 	{
@@ -344,7 +345,7 @@ int main(int argc, char *argv[])
 				}
 			}
 			else if (raspi.status == HANDLED)
-				sleep(3);
+				sleep(0.5);
 			timeout = SCAN_DURATION;
 		}
 	}

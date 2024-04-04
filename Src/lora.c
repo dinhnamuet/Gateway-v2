@@ -89,7 +89,7 @@ void LoRa_init(struct LoRa_node *LoRa, uint32_t new_id)
     LoRa->light_sensor_value    = 0;
     LoRa->voltage               = 0;
 }
-int LoRa_gotoMode(int mode)
+int LoRa_gotoMode(lora_mode_t mode)
 {
     int fd;
     fd = open(SX1278, O_RDWR);
@@ -113,7 +113,7 @@ int LoRa_setFrequency(int frequency)
 	close(fd);
     return 0;
 }
-int LoRa_setSpreadingFactor(uint8_t SF)
+int LoRa_setSpreadingFactor(SF_t SF)
 {
 	int fd;
 	fd = open(SX1278, O_RDWR);
@@ -127,7 +127,7 @@ int LoRa_setSpreadingFactor(uint8_t SF)
 	close(fd);
     return 0;
 }
-int LoRa_setPower(uint8_t power)
+int LoRa_setPower(power_t power)
 {
 	int fd;
 	fd = open(SX1278, O_RDWR);
@@ -141,7 +141,7 @@ int LoRa_setPower(uint8_t power)
 	close(fd);
     return 0;
 }
-int LoRa_setBandWidth(uint8_t BW)
+int LoRa_setBandWidth(bandwidth_t BW)
 {
 	int fd;
 	fd = open(SX1278, O_RDWR);
@@ -170,7 +170,7 @@ int LoRa_getRSSI(void)
 	close(fd);
     return rssi - 164;
 }
-int LoRa_setCodingRate(uint8_t cR)
+int LoRa_setCodingRate(codingrate_t cR)
 {
 	int fd;
 	fd = open(SX1278, O_RDWR);
@@ -197,4 +197,19 @@ int LoRa_setSyncWord(uint8_t syncword)
 	}
 	close(fd);
     return 0;
+}
+status_t LoRa_getStatus(void)
+{
+	status_t read;
+	int fd;
+	fd = open(SX1278, O_RDWR);
+	if (-1 == fd)
+		return -1;
+	if (ioctl(fd, GET_STATUS, &read) < 0)
+	{
+		close(fd);
+        return -1;
+	}
+	close(fd);
+    return read;
 }

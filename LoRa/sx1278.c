@@ -15,20 +15,20 @@
 #include <linux/workqueue.h>
 #include "sx1278.h"
 
-static LIST_HEAD(device_list);
 dev_t device_number;
 struct class *semtech;
 
 struct LoRa
 {
 	int irq;
+	status_t status;
 	int current_mode;
 	int frequency;
-	uint8_t spreadingFactor;
-	uint8_t bandWidth;
-	uint8_t codingRate;
+	SF_t spreadingFactor;
+	bandwidth_t bandWidth;
+	codingrate_t codingRate;
 	uint16_t preamble;
-	uint8_t power;
+	power_t power;
 	uint8_t overCurrentProtection;
 	uint8_t *receive_buffer;
 	uint8_t *transmit_buffer;
@@ -40,9 +40,8 @@ struct LoRa
 	struct spi_device *spi;
 	struct gpio_desc *reset;
 	struct gpio_desc *dio0;
-	struct cdev *mcdev;
+	struct cdev mcdev;
 	struct device *mdevice;
-	struct list_head device_entry;
 	struct work_struct workqueue;
 	struct task_struct *task;
 };
@@ -50,24 +49,24 @@ struct LoRa
 static void LoRa_Reset(struct LoRa *_LoRa);
 static uint8_t LoRa_Read(struct LoRa *_LoRa, uint8_t address);
 static void LoRa_Write(struct LoRa *_LoRa, uint8_t address, uint8_t value);
-static void LoRa_gotoMode(struct LoRa *_LoRa, int mode);
+static void LoRa_gotoMode(struct LoRa *_LoRa, lora_mode_t mode);
 static void LoRa_setFrequency(struct LoRa *_LoRa, int f);
-static void LoRa_setSpreadingFactor(struct LoRa *_LoRa, uint8_t SF);
-static void LoRa_setPower(struct LoRa *_LoRa, uint8_t power);
+static void LoRa_setSpreadingFactor(struct LoRa *_LoRa, SF_t SF);
+static void LoRa_setPower(struct LoRa *_LoRa, power_t power);
 static void LoRa_setOCP(struct LoRa *_LoRa, uint8_t cur);
 static void LoRa_setTOMsb_setCRCon(struct LoRa *_LoRa);
 static void LoRa_setLowDaraRateOptimization(struct LoRa *_LoRa, uint8_t value);
 static void LoRa_setAutoLDO(struct LoRa *_LoRa);
 static void LoRa_setSyncWord(struct LoRa *_LoRa, uint8_t syncword);
-static void LoRa_setBandWidth(struct LoRa *_LoRa, uint8_t BW);
-static void LoRa_setCodingRate(struct LoRa *_LoRa, uint8_t cdRate);
+static void LoRa_setBandWidth(struct LoRa *_LoRa, bandwidth_t BW);
+static void LoRa_setCodingRate(struct LoRa *_LoRa, codingrate_t cdRate);
 static void LoRa_BurstWrite(struct LoRa *_LoRa, uint8_t address, uint8_t *value);
-static uint8_t LoRa_isValid(struct LoRa *_LoRa);
+static status_t LoRa_isValid(struct LoRa *_LoRa);
 static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, uint16_t timeout);
 static void LoRa_startReceiving(struct LoRa *_LoRa);
 static uint8_t LoRa_receive(struct LoRa *_LoRa, uint8_t *data, uint8_t length);
 static uint8_t LoRa_getRSSI(struct LoRa *_LoRa);
-static uint16_t LoRa_init(struct LoRa *_LoRa);
+static status_t LoRa_init(struct LoRa *_LoRa);
 
 irqreturn_t get_message(int irq, void *dev_id)
 {
@@ -109,22 +108,9 @@ void workqueue_fn(struct work_struct *work)
 }
 static int sx1278_open(struct inode *inodep, struct file *filep)
 {
-	int status = -ENXIO;
-	struct LoRa *lora = NULL;
-	list_for_each_entry(lora, &device_list, device_entry)
-	{
-		if (lora->dev_num == inodep->i_rdev)
-		{
-			status = 0;
-			break;
-		}
-	}
-	if (status)
-	{
-		printk(KERN_INFO "Device has not supported \n");
-		return status;
-	}
-	filep->private_data = lora;
+	struct LoRa *lora = container_of(inodep->i_cdev, struct LoRa, mcdev);
+	if(lora)
+		filep->private_data = lora;
 	return 0;
 }
 static int sx1278_close(struct inode *inodep, struct file *filep)
@@ -205,6 +191,13 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 		if (!copy_from_user(&foo ,(int *)data, sizeof(int)))
 			LoRa_setFrequency(sx1278, foo);
 		break;
+	case GET_STATUS:
+		sx1278->status = LoRa_isValid(sx1278);
+		if (copy_to_user((status_t *)data, &sx1278->status, sizeof(status_t)) != 0)
+		{
+			printk(KERN_ERR "Get STATUS failure\n");
+			return -1;
+		}
 	default:
 		break;
 	}
@@ -228,7 +221,7 @@ static int sx1278_probe(struct spi_device *spi)
 	if (!sx1278)
 	{
 		printk(KERN_ERR "Kzalloc failed\n");
-		return -1;
+		return -ENOMEM;
 	}
 	/* config reset & dio0 */
 	sx1278->reset = gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
@@ -258,11 +251,10 @@ static int sx1278_probe(struct spi_device *spi)
 	sprintf(sx1278->name, "%s-%d", DEV_NAME, sx1278->spi->chip_select);
 	
 	sx1278->dev_num = MKDEV(MAJOR(device_number), sx1278->spi->chip_select);
-	sx1278->mcdev = cdev_alloc();
-	sx1278->mcdev->owner = THIS_MODULE;
-	sx1278->mcdev->dev = sx1278->dev_num;
-	cdev_init(sx1278->mcdev, &fops);
-	if (cdev_add(sx1278->mcdev, sx1278->dev_num, 1) < 0)
+	sx1278->mcdev.owner = THIS_MODULE;
+	sx1278->mcdev.dev = sx1278->dev_num;
+	cdev_init(&sx1278->mcdev, &fops);
+	if (cdev_add(&sx1278->mcdev, sx1278->dev_num, 1) < 0)
 	{
 		printk(KERN_ERR "Cdev add failure\n");
 		goto free_resource;
@@ -299,8 +291,6 @@ static int sx1278_probe(struct spi_device *spi)
 		printk(KERN_ERR "LoRa init failure\n");
 		goto rm_lora;
 	}
-	INIT_LIST_HEAD(&sx1278->device_entry);
-	list_add(&sx1278->device_entry, &device_list);
 	LoRa_gotoMode(sx1278, SLEEP_MODE);
 	printk(KERN_INFO "sx1278: %s is loaded, Cs: %d, Speed: %d, bits per word: %d!\n", sx1278->name, sx1278->spi->chip_select, sx1278->spi->max_speed_hz, sx1278->spi->bits_per_word);
 	return 0;
@@ -314,7 +304,7 @@ rm_buff_rec:
 rm_device:
 	device_destroy(semtech, sx1278->dev_num);
 rm_cdev:
-	cdev_del(sx1278->mcdev);
+	cdev_del(&sx1278->mcdev);
 free_resource:
 	gpiod_set_value(sx1278->reset, 0);
 	gpiod_put(sx1278->dio0);
@@ -339,12 +329,16 @@ static void sx1278_remove(struct spi_device *spi)
 		gpiod_put(sx1278->reset);
 		free_irq(sx1278->irq, sx1278);
 		device_destroy(semtech, sx1278->dev_num);
-		cdev_del(sx1278->mcdev);
+		cdev_del(&sx1278->mcdev);
 		unregister_chrdev_region(sx1278->dev_num, 1);
-		list_del(&sx1278->device_entry);
 		sx1278->task = NULL;
 	}
 }
+static const struct spi_device_id sx1278_spi_id [] = {
+	{"nam"},
+	{}
+};
+MODULE_DEVICE_TABLE(spi, sx1278_spi_id);
 
 static const struct of_device_id sx1278_of_match_id[] = {
 	{ .compatible = "sx1278-lora,nam" },
@@ -360,6 +354,7 @@ static struct spi_driver sx1278_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(sx1278_of_match_id),
 	},
+	.id_table = sx1278_spi_id,
 };
 
 static int __init sx1278_init(void)
@@ -369,7 +364,7 @@ static int __init sx1278_init(void)
 		printk(KERN_ERR "Allocate device number failure!\n");
 		return -1;
 	}
-	semtech = class_create(THIS_MODULE, DEV_NAME);
+	semtech = class_create(DEV_NAME);
 	if(semtech == NULL)
 	{
 		printk(KERN_INFO "Create class failed\n");
@@ -417,7 +412,7 @@ static void LoRa_Reset(struct LoRa *_LoRa)
 	gpiod_set_value(_LoRa->reset, 1);
 	msleep(100);
 }
-static void LoRa_gotoMode(struct LoRa *_LoRa, int mode)
+static void LoRa_gotoMode(struct LoRa *_LoRa, lora_mode_t mode)
 {
 	uint8_t read, data;
 	read = LoRa_Read(_LoRa, RegOpMode);
@@ -470,7 +465,7 @@ static void LoRa_setFrequency(struct LoRa *_LoRa, int f)
 	LoRa_Write(_LoRa, RegFrLsb, data);
 	msleep(5);
 }
-static void LoRa_setSpreadingFactor(struct LoRa *_LoRa, uint8_t SF)
+static void LoRa_setSpreadingFactor(struct LoRa *_LoRa, SF_t SF)
 {
 	uint8_t data;
 	uint8_t read;
@@ -488,7 +483,7 @@ static void LoRa_setSpreadingFactor(struct LoRa *_LoRa, uint8_t SF)
 	msleep(10);
 	LoRa_setAutoLDO(_LoRa);
 }
-static void LoRa_setPower(struct LoRa *_LoRa, uint8_t power)
+static void LoRa_setPower(struct LoRa *_LoRa, power_t power)
 {
 	LoRa_Write(_LoRa, RegPaConfig, power);
 	msleep(10);
@@ -540,7 +535,7 @@ static void LoRa_setSyncWord(struct LoRa *_LoRa, uint8_t syncword)
 	LoRa_Write(_LoRa, RegSyncWord, syncword);
 	msleep(10);
 }
-static void LoRa_setBandWidth(struct LoRa *_LoRa, uint8_t BW)
+static void LoRa_setBandWidth(struct LoRa *_LoRa, bandwidth_t BW)
 {
 	uint8_t data;
 	data = LoRa_Read(_LoRa, RegModemConfig1);
@@ -549,7 +544,7 @@ static void LoRa_setBandWidth(struct LoRa *_LoRa, uint8_t BW)
 	LoRa_Write(_LoRa, RegModemConfig1, data);
 	LoRa_setAutoLDO(_LoRa);
 }
-static void LoRa_setCodingRate(struct LoRa *_LoRa, uint8_t cdRate)
+static void LoRa_setCodingRate(struct LoRa *_LoRa, codingrate_t cdRate)
 {
 	uint8_t data;
 	data = LoRa_Read(_LoRa, RegModemConfig1);
@@ -565,10 +560,12 @@ static void LoRa_BurstWrite(struct LoRa *_LoRa, uint8_t address, uint8_t *value)
 	memcpy(&to_send[1], value, strlen(value));
 	spi_write(_LoRa->spi, to_send, strlen(to_send));
 }
-static uint8_t LoRa_isValid(struct LoRa *_LoRa)
+static status_t LoRa_isValid(struct LoRa *_LoRa)
 {
-	(void)_LoRa;
-	return 1;
+	if (LoRa_Read(_LoRa, RegVersion) == 0x12)
+		return LORA_OK;
+	else
+		return LORA_NOT_FOUND;
 }
 
 static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, uint16_t timeout)
@@ -656,7 +653,7 @@ static uint8_t LoRa_getRSSI(struct LoRa *_LoRa)
 	read = LoRa_Read(_LoRa, RegPktRssiValue);
 	return read;
 }
-static uint16_t LoRa_init(struct LoRa *_LoRa)
+static status_t LoRa_init(struct LoRa *_LoRa)
 {
 	uint8_t data;
 	uint8_t read;
@@ -670,7 +667,7 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 
 	LoRa_Reset(_LoRa);
 
-	if (LoRa_isValid(_LoRa))
+	if (LoRa_isValid(_LoRa) == LORA_OK)
 	{
 		// goto sleep mode:
 		LoRa_gotoMode(_LoRa, SLEEP_MODE);
@@ -723,7 +720,6 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 
 		// goto standby mode:
 		LoRa_gotoMode(_LoRa, STANDBY_MODE);
-		_LoRa->current_mode = STANDBY_MODE;
 		msleep(10);
 
 		read = LoRa_Read(_LoRa, RegVersion);
@@ -734,7 +730,7 @@ static uint16_t LoRa_init(struct LoRa *_LoRa)
 	}
 	else
 	{
-		return LORA_UNAVAILABLE;
+		return LoRa_isValid(_LoRa);
 	}
 }
 
