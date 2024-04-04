@@ -14,3 +14,14 @@
 		status = "okay";
 	};
 };
+&i2c5 {
+        status = "okay";
+        pinctrl-names = "default";
+        pinctrl-0 = <&i2c5_gpio12>;
+
+        oled@3c {
+                compatible = "ssd1306-oled,nam";
+                reg = <0x3c>;
+                status = "okay";
+        };
+};

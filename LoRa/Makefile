@@ -1,3 +1,0 @@
-EXTRA_CFLAGS = -Wall
-
-obj-$(CONFIG_SX1278_LORA) += sx1278.o

@@ -9,7 +9,7 @@ LIB_STATIC:=`pwd`/libs/static
 LIB_SHARED:=`pwd`/libs/shared
 
 all: mkObj static shared install
-	${CC} -Wall -o ${BIN}/gateway ${Obj}/main.o -L${LIB_STATIC} -lfirebase -llora -lpthread -lcurl -lrt
+	${CC} -Wall -o ${BIN}/gateway ${Obj}/main.o ${Src}/oled.c -I ${Inc} -L${LIB_STATIC} -lfirebase -llora -lpthread -lcurl -lrt
 
 mkObj:
 	${CC} -c main.c -o ${Obj}/main.o -I ${Inc}

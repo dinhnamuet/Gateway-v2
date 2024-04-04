@@ -6,19 +6,19 @@
 #define PACKET_SIZE	60
 #define GATEWAY_ID	20021163
 #define SCAN_DURATION	60000
-#define ADD_DEVICE	0
+#define ADD_DEVICE		0
 #define DATA_AVAILABLE 	1
-#define GOT_SOCK 	2
-#define CTL_SOCK 	3
+#define GOT_SOCK 		2
+#define CTL_SOCK 		3
 #define REMOVE_DEVICE 	4
 #define DISCONNECTED 	5
-#define NOT_DONE 	0
-#define HANDLED 	1
+#define NOT_DONE 		0
+#define HANDLED 		1
 
-#define GLOBALIP 	282002
+#define GLOBALIP 		282002
 #define MODE_MANUAL 	6
-#define MODE_AUTO 	7
-#define FIND_DATA	8
+#define MODE_AUTO 		7
+#define FIND_DATA		8
 #define REQUEST_DATA 	2
 #define RESPONSE_DATA 	3
 

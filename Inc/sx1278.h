@@ -100,6 +100,6 @@ typedef enum {
 #define SYNC_WORD           _IOW('a', '5', uint8_t *)
 #define FREQUENCY           _IOW('a', '6', int *)
 #define POWER               _IOW('a', '7', power_t *)
-#define GET_STATUS          _IOW('a', '8', status_t *)
+#define GET_STATUS          _IOR('a', '8', status_t *)
 
 #endif

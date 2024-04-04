@@ -68,6 +68,9 @@ static uint8_t LoRa_receive(struct LoRa *_LoRa, uint8_t *data, uint8_t length);
 static uint8_t LoRa_getRSSI(struct LoRa *_LoRa);
 static status_t LoRa_init(struct LoRa *_LoRa);
 
+status_t getLoRa_stt(void *args);
+EXPORT_SYMBOL(getLoRa_stt);
+
 irqreturn_t get_message(int irq, void *dev_id)
 {
 	uint8_t r = 0;
@@ -335,8 +338,8 @@ static void sx1278_remove(struct spi_device *spi)
 		sx1278->task = NULL;
 	}
 }
-static const struct spi_device_id sx1278_spi_id[] = {
-	{ "nam" },
+static const struct spi_device_id sx1278_spi_id [] = {
+	{"nam"},
 	{}
 };
 MODULE_DEVICE_TABLE(spi, sx1278_spi_id);
@@ -568,7 +571,13 @@ static status_t LoRa_isValid(struct LoRa *_LoRa)
 	else
 		return LORA_NOT_FOUND;
 }
-
+status_t getLoRa_stt(void *args)
+{
+	struct LoRa *lora = (struct LoRa *)args;
+	if(lora)
+		return (int)LoRa_isValid(lora);
+	return LORA_NOT_FOUND;
+}
 static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, uint16_t timeout)
 {
 	uint8_t read;
@@ -739,6 +748,6 @@ module_init(sx1278_init);
 module_exit(sx1278_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("20021163@vnu.edu.vn");
+MODULE_AUTHOR("DinhNam <20021163@vnu.edu.vn>");
 MODULE_DESCRIPTION("SPI Driver for SX1278");
 MODULE_VERSION("1.1");

@@ -19,6 +19,7 @@
 #include "firebase.h"
 #include "gateway.h"
 #include "lora.h"
+#include "oled.h"
 #define shared "foo"
 sigset_t newmask;
 volatile sig_atomic_t rx_sig = 0;
@@ -166,7 +167,6 @@ static void handler(int num)
 }
 int main(int argc, char *argv[])
 {
-	printf("LoRa status: %d\n", (int)LoRa_getStatus());
 	int shr_fd = shm_open(shared, O_CREAT | O_RDWR, 666);
 	if (-1 == shr_fd)
 	{
@@ -507,16 +507,14 @@ static int get_data_from_node(struct device_command *dev, struct handling *node)
 static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct handling *node)
 {
 	uint8_t i;
+	struct node_info myNode;
 	int ret_val, _light, _ill, _mode;
 	float _vol, _curr;
 	struct LoRa_packet foo;
 	/* Unpack LoRa packet */
 	foo.pkt_type = buff[0];
 	if (foo.pkt_type != RESPONSE_DATA)
-	{
-		// LoRa_gotoMode(RXSINGLE);
 		return -1;
-	}
 	foo.uid = (uint32_t)(buff[1] << 24 | buff[2] << 16 | buff[3] << 8 | buff[4]);
 	foo.destination_id = (uint32_t)(buff[5] << 24 | buff[6] << 16 | buff[7] << 8 | buff[8]);
 	foo.data_length = buff[9];
@@ -541,6 +539,14 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 					newLoRa[i].current = _curr;
 					newLoRa[i].current_mode = _mode;
 					db_update_data(newLoRa[i]);
+					myNode.id = newLoRa[i].id;
+					myNode.node_count = node_count;
+					myNode.illuminance = newLoRa[i].illuminance;
+					if(newLoRa[i].current_mode == MODE_MANUAL)
+						myNode.mode = MANUAL;
+					else
+						myNode.mode = AUTO;
+					put_data_to_screen(&myNode);
 				}
 				else
 				{
