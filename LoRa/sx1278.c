@@ -198,6 +198,7 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 			printk(KERN_ERR "Get STATUS failure\n");
 			return -1;
 		}
+		break;
 	default:
 		break;
 	}
@@ -334,8 +335,8 @@ static void sx1278_remove(struct spi_device *spi)
 		sx1278->task = NULL;
 	}
 }
-static const struct spi_device_id sx1278_spi_id [] = {
-	{"nam"},
+static const struct spi_device_id sx1278_spi_id[] = {
+	{ "nam" },
 	{}
 };
 MODULE_DEVICE_TABLE(spi, sx1278_spi_id);
