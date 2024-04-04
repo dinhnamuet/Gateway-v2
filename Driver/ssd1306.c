@@ -29,7 +29,7 @@ struct ssd1306
 	struct mutex lock;
 	struct kern_time time;
 };
-int getLoRa_stt(void *args);
+status_t getLoRa_stt(void *args);
 static void ssd1306_write(struct ssd1306 *oled, uint8_t data, write_mode_t mode);
 static void ssd1306_init(struct ssd1306 *oled);
 static void ssd1306_clear(struct ssd1306 *oled);
