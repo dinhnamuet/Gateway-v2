@@ -338,9 +338,9 @@ static void sx1278_remove(struct spi_device *spi)
 		sx1278->task = NULL;
 	}
 }
-static const struct spi_device_id sx1278_spi_id [] = {
-	{"nam"},
-	{}
+static const struct spi_device_id sx1278_spi_id[] = {
+	{ .name = "nam", },
+	{	}
 };
 MODULE_DEVICE_TABLE(spi, sx1278_spi_id);
 
@@ -575,7 +575,7 @@ status_t getLoRa_stt(void *args)
 {
 	struct LoRa *lora = (struct LoRa *)args;
 	if(lora)
-		return (int)LoRa_isValid(lora);
+		return LoRa_isValid(lora);
 	return LORA_NOT_FOUND;
 }
 static uint8_t LoRa_transmit(struct LoRa *_LoRa, uint8_t *data, uint8_t length, uint16_t timeout)
