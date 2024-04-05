@@ -118,6 +118,15 @@ static void oled_remove(struct i2c_client *client)
 		pr_info("%s, %d\n", __func__, __LINE__);
 	}
 }
+static void board_shutdown(struct i2c_client *client)
+{
+	struct ssd1306 *oled = i2c_get_clientdata(client);
+	ssd1306_clear(oled);
+	ssd1306_goto_xy(oled, 7, 3);
+	ssd1306_send_string(oled, "GoodBye!");
+	msleep(1500);
+	ssd1306_write(oled, 0xAE, COMMAND);
+}
 static const struct i2c_device_id oled_device_id[] = {
 	{ .name = "nam", 0 },
 	{}
@@ -132,6 +141,7 @@ MODULE_DEVICE_TABLE(of, oled_of_match_id);
 static struct i2c_driver oled_driver = {
 	.probe = oled_probe,
 	.remove = oled_remove,
+	.shutdown = board_shutdown,
 	.driver = {
 		.name = "oled",
 		.owner = THIS_MODULE,
