@@ -22,7 +22,7 @@ struct LoRa
 {
 	int irq;
 	status_t status;
-	int current_mode;
+	lora_mode_t current_mode;
 	int frequency;
 	SF_t spreadingFactor;
 	bandwidth_t bandWidth;
@@ -167,28 +167,28 @@ static long sx1278_ioctl(struct file *filep, unsigned int cmd, unsigned long dat
 		}
 		break;
 	case GOTO_MODE:
-		if (!copy_from_user(&foo ,(int *)data, sizeof(int)))
-			LoRa_gotoMode(sx1278, foo);
+		if (!copy_from_user(&sx1278->current_mode ,(lora_mode_t *)data, sizeof(lora_mode_t)))
+			LoRa_gotoMode(sx1278, sx1278->current_mode);
 		break;
 	case BAND_WIDTH:
-		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
-			LoRa_setBandWidth(sx1278, (uint8_t)foo);
+		if (!copy_from_user(&sx1278->bandWidth ,(bandwidth_t *)data, sizeof(bandwidth_t)))
+			LoRa_setBandWidth(sx1278, sx1278->bandWidth);
 		break;
 	case SPREADING_FACTOR:
-		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
-			LoRa_setSpreadingFactor(sx1278, (uint8_t)foo);
+		if (!copy_from_user(&sx1278->spreadingFactor ,(SF_t *)data, sizeof(SF_t)))
+			LoRa_setSpreadingFactor(sx1278, sx1278->spreadingFactor);
 		break;
 	case CODING_RATE:
-		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
-			LoRa_setCodingRate(sx1278, (uint8_t)foo);
+		if (!copy_from_user(&sx1278->codingRate ,(codingrate_t *)data, sizeof(codingrate_t)))
+			LoRa_setCodingRate(sx1278, sx1278->codingRate);
 		break;
 	case SYNC_WORD:
 		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
 			LoRa_setSyncWord(sx1278, (uint8_t)foo);
 		break;
 	case POWER:
-		if (!copy_from_user(&foo ,(uint8_t *)data, 1))
-			LoRa_setPower(sx1278, (uint8_t)foo);
+		if (!copy_from_user(&sx1278->power ,(power_t *)data, sizeof(power_t)))
+			LoRa_setPower(sx1278, sx1278->power);
 		break;
 	case FREQUENCY:
 		if (!copy_from_user(&foo ,(int *)data, sizeof(int)))
