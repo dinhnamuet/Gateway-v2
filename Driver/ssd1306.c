@@ -113,6 +113,7 @@ static void oled_remove(struct i2c_client *client)
 		ssd1306_clear(oled);
 		kfree(oled->buffer);
 		misc_deregister(&oled->miscdev);
+		mutex_destroy(&oled->lock);
 		ssd1306_write(oled, 0xAE, COMMAND); // display off
 		pr_info("%s, %d\n", __func__, __LINE__);
 	}

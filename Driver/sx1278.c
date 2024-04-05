@@ -13,6 +13,7 @@
 #include <linux/sched/signal.h>
 #include <linux/mod_devicetable.h>
 #include <linux/workqueue.h>
+#include <linux/mutex.h>
 #include "sx1278.h"
 
 dev_t device_number;
@@ -44,6 +45,7 @@ struct LoRa
 	struct device *mdevice;
 	struct work_struct workqueue;
 	struct task_struct *task;
+	struct mutex lock;
 };
 
 static void LoRa_Reset(struct LoRa *_LoRa);
@@ -287,7 +289,7 @@ static int sx1278_probe(struct spi_device *spi)
 		printk(KERN_ERR "Allocate failure\n");
 		goto rm_buff_tr;
 	}
-	
+	mutex_init(&sx1278->lock);
 	INIT_WORK(&sx1278->workqueue, workqueue_fn); // init workqueue
 	
 	if (LoRa_init(sx1278) != LORA_OK)
@@ -325,6 +327,8 @@ static void sx1278_remove(struct spi_device *spi)
 	}
 	else
 	{
+		LoRa_gotoMode(sx1278, SLEEP_MODE);
+		mutex_destroy(&sx1278->lock);
 		kfree(sx1278->receive_buffer);
 		kfree(sx1278->transmit_buffer);
 		kfree(sx1278->cache_buffer);
@@ -337,6 +341,12 @@ static void sx1278_remove(struct spi_device *spi)
 		unregister_chrdev_region(sx1278->dev_num, 1);
 		sx1278->task = NULL;
 	}
+}
+
+static void board_shutdown(struct spi_device *spi)
+{
+	struct LoRa *sx1278 = spi_get_drvdata(spi);
+	LoRa_gotoMode(sx1278, SLEEP_MODE);
 }
 static const struct spi_device_id sx1278_spi_id[] = {
 	{ .name = "nam", },
@@ -353,6 +363,7 @@ MODULE_DEVICE_TABLE(of, sx1278_of_match_id);
 static struct spi_driver sx1278_driver = {
 	.probe = sx1278_probe,
 	.remove = sx1278_remove,
+	.shutdown = board_shutdown,
 	.driver = {
 		.name = "sx1278",
 		.owner = THIS_MODULE,
@@ -399,14 +410,18 @@ static void LoRa_Write(struct LoRa *_LoRa, uint8_t address, uint8_t value)
 	uint8_t to_send[2];
 	to_send[0] = address | (1 << 7);
 	to_send[1] = value;
+	mutex_lock(&_LoRa->lock);
 	spi_write(_LoRa->spi, to_send, 2);
+	mutex_unlock(&_LoRa->lock);
 }
 static uint8_t LoRa_Read(struct LoRa *_LoRa, uint8_t address)
 {
 	uint8_t readData;
 	uint8_t addr;
 	addr = address & ~(1 << 7);
+	mutex_lock(&_LoRa->lock);
 	spi_write_then_read(_LoRa->spi, &addr, 1, &readData, 1);
+	mutex_unlock(&_LoRa->lock);
 	return readData;
 }
 static void LoRa_Reset(struct LoRa *_LoRa)
@@ -562,7 +577,9 @@ static void LoRa_BurstWrite(struct LoRa *_LoRa, uint8_t address, uint8_t *value)
 	memset(to_send, 0, PACKET_SIZE);
 	to_send[0] = address | (1 << 7);
 	memcpy(&to_send[1], value, strlen(value));
+	mutex_lock(&_LoRa->lock);
 	spi_write(_LoRa->spi, to_send, strlen(to_send));
+	mutex_unlock(&_LoRa->lock);
 }
 static status_t LoRa_isValid(struct LoRa *_LoRa)
 {
