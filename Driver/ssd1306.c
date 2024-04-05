@@ -123,7 +123,7 @@ static void board_shutdown(struct i2c_client *client)
 	struct ssd1306 *oled = i2c_get_clientdata(client);
 	ssd1306_clear(oled);
 	ssd1306_goto_xy(oled, 7, 3);
-	ssd1306_send_string(oled, "GoodBye!");
+	ssd1306_send_string(oled, "GoodBye!", COLOR_WHITE);
 	msleep(1500);
 	ssd1306_write(oled, 0xAE, COMMAND);
 }
