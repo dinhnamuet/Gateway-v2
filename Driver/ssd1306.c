@@ -155,7 +155,9 @@ static void ssd1306_write(struct ssd1306 *oled, uint8_t data, write_mode_t mode)
 	else
 		buff[0] = 0x00; // command
 	buff[1] = data;
+	mutex_lock(&oled->lock);
 	i2c_master_send(oled->client, buff, 2);
+	mutex_unlock(&oled->lock);
 }
 static int ssd1306_burst_write(struct ssd1306 *oled, const uint8_t *data, int len, write_mode_t mode)
 {
@@ -170,7 +172,9 @@ static int ssd1306_burst_write(struct ssd1306 *oled, const uint8_t *data, int le
 	else
 		buff[0] = 0x00; // command
 	memcpy(&buff[1], data, len);
+	mutex_lock(&oled->lock);
 	res = i2c_master_send(oled->client, buff, len + 1);
+	mutex_unlock(&oled->lock);
 	kfree(buff);
 	return res;
 }
@@ -291,14 +295,12 @@ static void getinfo(struct work_struct *work)
 	sprintf(foo, "WiFi is %s!", (get_network_status_by_name("wlan0") == 0) ? "Okay" : "Disabled");
 	if(oled)
 	{
-		mutex_lock(&oled->lock);
 		ssd1306_clear_row(oled, WIFI);
 		ssd1306_goto_xy(oled, 0, WIFI);
 		ssd1306_send_string(oled, foo, COLOR_WHITE);
 		print_time(oled, WALL_TIME);
 		get_cpu_temperature_and_print(oled, CPU_TEMP);
 		get_lora_status_and_print(oled, LORA);
-		mutex_unlock(&oled->lock);
 	}
 	mod_timer(&oled->my_timer, jiffies + 60*HZ);
 }
@@ -435,9 +437,7 @@ static ssize_t oled_write(struct file *filep, const char __user *ubuff, size_t s
 		pr_err("Write devfs failed\n");
 		return -EFAULT;
 	}
-	mutex_lock(&oled->lock);
 	ssd1306_send_string(oled, oled->buffer, COLOR_WHITE);
-	mutex_unlock(&oled->lock);
 	return size;
 }
 static long oled_ioctl(struct file *filep, unsigned int cmd, unsigned long data)
@@ -452,9 +452,7 @@ static long oled_ioctl(struct file *filep, unsigned int cmd, unsigned long data)
 				pr_err("IOCTL Failed\n");
 				return -1;
 			}
-			mutex_lock(&oled->lock);
 			show_lastest_node_info(oled, &mynode);
-			mutex_unlock(&oled->lock);
 			break;
 		default:
 			break;
