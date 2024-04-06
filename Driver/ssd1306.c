@@ -91,9 +91,13 @@ static int oled_probe(struct i2c_client *client)
 	mutex_init(&oled->lock);
 	INIT_WORK(&oled->workqueue, getinfo);
 	timer_setup(&oled->my_timer, tmHandler, 0);
-	oled->my_timer.expires = jiffies + HZ;
+	oled->my_timer.expires = jiffies + 5*HZ;
 	add_timer(&oled->my_timer);
-	pr_info("Oled driver init successfully\n");
+	ssd1306_goto_xy(oled, 4, 0);
+	ssd1306_send_string(oled, "LoRa Gateway", COLOR_WHITE);
+	ssd1306_goto_xy(oled, 0, 2);
+	ssd1306_send_string(oled, "Please Wait ...!", COLOR_WHITE);
+	pr_info("oled init successfully\n");
 	return 0;
 rm_buff:
 	kfree(oled->buffer);
@@ -123,8 +127,9 @@ static void board_shutdown(struct i2c_client *client)
 	struct ssd1306 *oled = i2c_get_clientdata(client);
 	ssd1306_clear(oled);
 	ssd1306_goto_xy(oled, 7, 3);
+	msleep(10);
 	ssd1306_send_string(oled, "GoodBye!", COLOR_WHITE);
-	msleep(1500);
+	msleep(2000);
 	ssd1306_write(oled, 0xAE, COMMAND);
 }
 static const struct i2c_device_id oled_device_id[] = {
@@ -322,7 +327,7 @@ static void tmHandler(struct timer_list *tm)
 }
 static int get_network_status_by_name(const char *name)
 {
-	struct net_device *dev = NULL;
+    struct net_device *dev = NULL;
     dev = dev_get_by_name(&init_net, name);
     if (dev)
     {
@@ -333,7 +338,7 @@ static int get_network_status_by_name(const char *name)
 }
 static void get_time_of_day(struct kern_time *rt)
 {
-	time64_t seconds;
+    time64_t seconds;
     seconds = ktime_to_ns(ktime_get_real())/NSEC_PER_SEC;
     seconds += 7*3600; // GMT +7
     rt->hour = (seconds / 3600) % 24;
