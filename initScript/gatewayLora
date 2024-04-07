@@ -1,0 +1,43 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          gatewayLoRa
+# Required-Start:    $remote_fs $syslog network
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start gateway daemon at boot time
+# Description:       Enable service provided by daemon.
+### END INIT INFO
+
+# Change the path to your application
+APP_PATH="/home/pi/Gateway-v2/Bin/gateway"
+
+case "$1" in
+  start)
+    # Wait for network connection
+    while ! /sbin/ifconfig wlan0 ; do
+        sleep 1
+    done
+    # Wait for /dev/lora-0 and /dev/oled
+    while [ ! -c "/dev/lora-0" ] || [ ! -c "/dev/oled" ] ; do
+        sleep 1
+    done
+    ${APP_PATH} &
+    ;;
+  stop)
+    killall gateway
+    ;;
+  restart)
+    echo "Restarting gateway"
+    killall gateway
+    sleep 1
+    ${APP_PATH} &
+    ;;
+  *)
+    echo "Usage: /etc/init.d/gateway {start|stop|restart}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
