@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <stdatomic.h>
 #include <sys/mman.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
 #include <time.h>
@@ -21,6 +22,7 @@
 #include "lora.h"
 #include "oled.h"
 #define shared "foo"
+#define NODE_FILE "/home/pi/Gateway-v2/node_list.txt"
 sigset_t newmask;
 volatile sig_atomic_t rx_sig = 0;
 volatile sig_atomic_t socket_flag = 0;
@@ -34,8 +36,10 @@ struct LoRa_node *newLoRa = NULL;
 volatile uint32_t node_count = 0;
 int communication;
 
+static int setup_node(void);
 static int add_device(uint32_t new_id);
 static int remove_device(uint32_t device_id);
+static int sync_list_to_file(void);
 static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct handling *node);
 static int get_data_from_node(struct device_command *dev, struct handling *node);
 void sig_chld(int num);
@@ -198,6 +202,7 @@ int main(int argc, char *argv[])
 		signal(SIGUSR2, handler);
 		LoRa_start();
 		register_recv_signal_from_driver();
+		setup_node();
 		printf("LoRa GateWay init is successfully!\n");
 		gateway.uid = GATEWAY_ID;
 		while (1)
@@ -415,6 +420,7 @@ static int add_device(uint32_t new_id)
 		newLoRa = (struct LoRa_node *)calloc(node_count, sizeof(struct LoRa_node));
 		LoRa_init(&newLoRa[node_count - 1], new_id);
 		db_add_node(newLoRa[node_count - 1]);
+		sync_list_to_file();
 		return 0;
 	}
 	else
@@ -431,6 +437,7 @@ static int add_device(uint32_t new_id)
 		newLoRa = (struct LoRa_node *)realloc(newLoRa, node_count * sizeof(struct LoRa_node));
 		LoRa_init(&newLoRa[node_count - 1], new_id);
 		db_add_node(newLoRa[node_count - 1]);
+		sync_list_to_file();
 		return 0;
 	}
 }
@@ -449,6 +456,7 @@ static int remove_device(uint32_t device_id)
 			}
 			node_count--;
 			newLoRa = (struct LoRa_node *)realloc(newLoRa, node_count * sizeof(uint32_t));
+			sync_list_to_file();
 			break;
 		}
 	}
@@ -456,6 +464,62 @@ static int remove_device(uint32_t device_id)
 		return 0;
 	else
 		return -1;
+}
+static int setup_node(void)
+{
+	int fd;
+	struct stat file;
+	char *buffer = NULL;
+	char *token = NULL;
+	fd = open(NODE_FILE, O_RDONLY);
+	if(-1 == fd)
+		return -1;
+	fstat(fd, &file);
+	if(file.st_size > 0)
+	{
+		buffer = calloc(file.st_size, sizeof(char));
+		if(!buffer)
+		{
+			close(fd);
+			return -1;
+		}
+		read(fd, buffer, file.st_size); // read all file
+
+		token = strtok(buffer, " ");
+		while(token)
+		{
+			add_device(atoi(token));
+			token = strtok(NULL, " ");
+		}
+		free(buffer);
+	}
+	close(fd);
+	return node_count;
+}
+static int sync_list_to_file(void)
+{
+	int i, fd;
+	char one_node[11];
+	fd = open(NODE_FILE, O_WRONLY);
+	if(-1 == fd)
+		return -1;
+	if(node_count > 0)
+	{
+		ftruncate(fd, 0); //clear all list node
+		lseek(fd, 0, SEEK_SET); //move cursor to 0
+		for (i = 0; i < node_count; i++)
+		{
+			memset(one_node, 0, sizeof(one_node));
+			sprintf(one_node, "%d ", newLoRa[i].id);
+			write(fd, one_node, strlen(one_node));
+		}
+		sync();
+	}
+	else
+	{
+		ftruncate(fd, 0); //clear all list node
+	}
+	close(fd);
 }
 static void scan_node_list(struct device_command *dev)
 {
