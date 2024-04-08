@@ -159,6 +159,7 @@ void *recv_msg(void *args)
 		else
 		{
 			pthread_cancel(snd);
+			new->ack = 1;
 			break;
 		}
 	}
