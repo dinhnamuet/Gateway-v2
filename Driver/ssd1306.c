@@ -510,7 +510,6 @@ static void ssd1306_draw_bitmap(struct ssd1306 *oled, u8 x, u8 y,
 				const u8 *bitmap, u8 width,
 				u8 height, color_t color)
 {
-	memset(oled->buffer, 0, (OLED_WIDTH * OLED_HEIGHT / 8));
 	int16_t byteWidth = (width + 7) / 8;
 	u8 byte = 0;
 	for (int16_t j = 0; j < height; j++, y++) {
