@@ -2,6 +2,8 @@ menu "Gateway LORA"
 
 config GATEWAY
 	bool "LoRa gateway driver"
+	depends on ARM64
+	default y if ARM64
 	help
 	  Select this option to run gateway device!
 endmenu

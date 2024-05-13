@@ -22,7 +22,7 @@
 #include "lora.h"
 #include "oled.h"
 #define shared "foo"
-#define NODE_FILE "/home/pi/Gateway-v2/node_list.txt"
+#define NODE_FILE "/home/pi/Desktop/Gateway-v2/node_list.txt"
 sigset_t newmask;
 volatile sig_atomic_t rx_sig = 0;
 volatile sig_atomic_t socket_flag = 0;
@@ -35,6 +35,7 @@ pid_t ppid;
 struct LoRa_node *newLoRa = NULL;
 volatile uint32_t node_count = 0;
 int communication;
+struct timeval timeStart;
 
 static int setup_node(void);
 static int add_device(uint32_t new_id);
@@ -49,6 +50,8 @@ static void scan_node_list(struct device_command *dev);
 static void scand_node_data(struct device_command *dev);
 static void block_sigusr1(void);
 static void unblock_sigusr1(void);
+static time_t time_mesurement(void);
+static float average_time(time_t time);
 
 void *send_msg(void *args)
 {
@@ -188,7 +191,6 @@ int main(int argc, char *argv[])
 		unsigned long timeout = SCAN_DURATION;
 		struct handling raspi;
 		struct LoRa_packet gateway;
-		struct timeval tim;
 		struct tm *sys_tim;
 		struct device_command *share_device;
 		share_device = (struct device_command *)mmap(NULL, sizeof(struct device_command), PROT_READ | PROT_WRITE, MAP_SHARED, shr_fd, 0);
@@ -210,8 +212,8 @@ int main(int argc, char *argv[])
 		{
 			if (node_count > 0)
 			{
-				gettimeofday(&tim, NULL);
-				sys_tim = localtime(&tim.tv_sec);
+				gettimeofday(&timeStart, NULL);
+				sys_tim = localtime(&timeStart.tv_sec);
 				gateway.pkt_type = REQUEST_DATA;
 				gateway.destination_id = newLoRa[i].id;
 				memset(gateway.data, 0, PACKET_SIZE - BASE_DATA);
@@ -221,7 +223,8 @@ int main(int argc, char *argv[])
 				raspi.id_handling = newLoRa[i].id;
 				raspi.status = NOT_DONE;
 				lora_transmit(tx_buff);
-				printf("\nRequest sent to %d\n", gateway.destination_id);
+				gettimeofday(&timeStart, NULL);
+				//puts("Request sent");
 				i = (i == node_count - 1) ? 0 : (i + 1);
 			}
 			while (--timeout)
@@ -291,7 +294,6 @@ int main(int argc, char *argv[])
 						sock_status = 0;
 						break;
 					case MODE_MANUAL:
-						printf("Start set mode manual\n");
 						for (tmp = 0; tmp < node_count; tmp++)
 						{
 							if (share_device->id_to_handler == newLoRa[tmp].id)
@@ -318,8 +320,8 @@ int main(int argc, char *argv[])
 						{
 							if (share_device->id_to_handler == newLoRa[tmp].id)
 							{
-								gettimeofday(&tim, NULL);
-								sys_tim = localtime(&tim.tv_sec);
+								gettimeofday(&timeStart, NULL);
+								sys_tim = localtime(&timeStart.tv_sec);
 								gateway.pkt_type = MODE_AUTO;
 								gateway.destination_id = newLoRa[tmp].id;
 								memset(gateway.data, 0, PACKET_SIZE - BASE_DATA);
@@ -351,7 +353,7 @@ int main(int argc, char *argv[])
 				}
 			}
 			else if (raspi.status == HANDLED)
-				sleep(1.5);
+				sleep(1);
 			timeout = SCAN_DURATION;
 		}
 	}
@@ -377,7 +379,7 @@ int main(int argc, char *argv[])
 		}
 		server_addr.sin_family = AF_INET;
 		server_addr.sin_port = htons(2000);
-		server_addr.sin_addr.s_addr = inet_addr("192.168.1.162");
+		server_addr.sin_addr.s_addr = INADDR_ANY;
 		if (bind(server_socket, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
 		{
 			printf("Socket binding failure\n");
@@ -517,9 +519,7 @@ static int sync_list_to_file(void)
 		sync();
 	}
 	else
-	{
 		ftruncate(fd, 0); //clear all list node
-	}
 	close(fd);
 }
 static void scan_node_list(struct device_command *dev)
@@ -555,6 +555,7 @@ static void scand_node_data(struct device_command *dev)
 static int get_data_from_node(struct device_command *dev, struct handling *node)
 {
 	char buff[PACKET_SIZE];
+	average_time(time_mesurement());
 	block_sigusr1();
 	if (node->status == HANDLED)
 	{
@@ -580,6 +581,7 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 	foo.pkt_type = buff[0];
 	if (foo.pkt_type != RESPONSE_DATA)
 		return -1;
+	//average_time(time_mesurement());
 	foo.uid = (uint32_t)(buff[1] << 24 | buff[2] << 16 | buff[3] << 8 | buff[4]);
 	foo.destination_id = (uint32_t)(buff[5] << 24 | buff[6] << 16 | buff[7] << 8 | buff[8]);
 	foo.data_length = buff[9];
@@ -588,7 +590,7 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 	{
 		foo.data[i] = buff[BASE_DATA + i];
 	}
-	printf("\nData from %d: %s\n", foo.uid, foo.data);
+	//puts("Got response");
 	if (foo.pkt_type == RESPONSE_DATA && foo.destination_id == GATEWAY_ID)
 	{
 		for (i = 0; i < node_count; i++)
@@ -603,7 +605,7 @@ static int handler_rx_data(uint8_t *buff, struct device_command *dev, struct han
 					newLoRa[i].voltage = _vol;
 					newLoRa[i].current = _curr;
 					newLoRa[i].current_mode = _mode;
-					db_update_data(newLoRa[i]);
+					//db_update_data(newLoRa[i]);
 					myNode.id = newLoRa[i].id;
 					myNode.node_count = node_count;
 					myNode.illuminance = newLoRa[i].illuminance;
@@ -668,5 +670,28 @@ static void block_sigusr1(void)
 static void unblock_sigusr1(void)
 {
 	sigprocmask(SIG_UNBLOCK, &newmask, NULL);
+}
+static time_t time_mesurement(void)
+{
+	time_t start, stop;
+	struct timeval timeStop;
+	gettimeofday(&timeStop, NULL);
+	start	= (timeStart.tv_sec * 1000000 + timeStart.tv_usec);
+	stop	= (timeStop.tv_sec * 1000000 + timeStop.tv_usec);
+	return stop - start;
+}
+static float average_time(time_t time)
+{
+	static float arg = 0;
+	static float num = 0;
+	static float sum = 0;
+	if(time <= 0)
+		return arg;
+	printf("lastest pack: %dms\n", time/1000);
+	num += 1;
+	sum += (float)time/1000;
+	arg = sum/num;
+	printf("processed successfully %d packets, Average (sum of request->response) time is %.2fms\n", (int)num, arg);
+	return arg;
 }
 /* RESPONSE PACKET DATA:	light intensity +  illuminance + voltage + current + currentMode*/
